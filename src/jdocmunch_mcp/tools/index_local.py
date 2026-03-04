@@ -1,0 +1,229 @@
+"""Index local folder tool — walk, parse, summarize, save."""
+
+import os
+import time
+from pathlib import Path
+from typing import Optional
+
+import pathspec
+
+from ..parser import parse_file, ALL_EXTENSIONS
+from ..security import (
+    validate_path,
+    is_symlink_escape,
+    is_secret_file,
+    should_exclude_file,
+    DEFAULT_MAX_FILE_SIZE,
+)
+from ..storage import DocStore
+from ..summarizer import summarize_sections
+
+
+SKIP_PATTERNS = [
+    "node_modules/", "vendor/", "venv/", ".venv/", "__pycache__/",
+    "dist/", "build/", ".git/", ".tox/", ".mypy_cache/",
+    ".gradle/", "target/",
+]
+
+
+def _load_gitignore(folder_path: Path) -> Optional[pathspec.PathSpec]:
+    gitignore_path = folder_path / ".gitignore"
+    if gitignore_path.is_file():
+        try:
+            content = gitignore_path.read_text(encoding="utf-8", errors="replace")
+            return pathspec.PathSpec.from_lines("gitignore", content.splitlines())
+        except Exception:
+            pass
+    return None
+
+
+def _should_skip(rel_path: str) -> bool:
+    normalized = rel_path.replace("\\", "/")
+    for pat in SKIP_PATTERNS:
+        if pat in normalized:
+            return True
+    return False
+
+
+def discover_doc_files(
+    folder_path: Path,
+    max_files: int = 500,
+    max_size: int = DEFAULT_MAX_FILE_SIZE,
+    extra_ignore_patterns: Optional[list] = None,
+    follow_symlinks: bool = False,
+) -> tuple:
+    """Discover doc files (.md, .txt, .rst) with security filtering."""
+    files = []
+    warnings = []
+    root = folder_path.resolve()
+
+    gitignore_spec = _load_gitignore(root)
+    extra_spec = None
+    if extra_ignore_patterns:
+        try:
+            extra_spec = pathspec.PathSpec.from_lines("gitignore", extra_ignore_patterns)
+        except Exception:
+            pass
+
+    for file_path in folder_path.rglob("*"):
+        if not file_path.is_file():
+            continue
+
+        if not follow_symlinks and file_path.is_symlink():
+            continue
+        if file_path.is_symlink() and is_symlink_escape(root, file_path):
+            warnings.append(f"Skipped symlink escape: {file_path}")
+            continue
+
+        if not validate_path(root, file_path):
+            warnings.append(f"Skipped path traversal: {file_path}")
+            continue
+
+        try:
+            rel_path = file_path.relative_to(root).as_posix()
+        except ValueError:
+            continue
+
+        if _should_skip(rel_path):
+            continue
+
+        if gitignore_spec and gitignore_spec.match_file(rel_path):
+            continue
+
+        if extra_spec and extra_spec.match_file(rel_path):
+            continue
+
+        if is_secret_file(rel_path):
+            warnings.append(f"Skipped secret file: {rel_path}")
+            continue
+
+        ext = file_path.suffix.lower()
+        if ext not in ALL_EXTENSIONS:
+            continue
+
+        try:
+            if file_path.stat().st_size > max_size:
+                continue
+        except OSError:
+            continue
+
+        files.append(file_path)
+
+    return files[:max_files], warnings
+
+
+def index_local(
+    path: str,
+    use_ai_summaries: bool = True,
+    storage_path: Optional[str] = None,
+    extra_ignore_patterns: Optional[list] = None,
+    follow_symlinks: bool = False,
+) -> dict:
+    """Index a local folder containing documentation files.
+
+    Args:
+        path: Path to local folder.
+        use_ai_summaries: Whether to use AI for section summaries.
+        storage_path: Custom storage path (default: ~/.doc-index/).
+        extra_ignore_patterns: Additional gitignore-style patterns to exclude.
+        follow_symlinks: Whether to follow symlinks.
+
+    Returns:
+        Dict with indexing results.
+    """
+    t0 = time.time()
+    folder_path = Path(path).expanduser().resolve()
+
+    if not folder_path.exists():
+        return {"success": False, "error": f"Folder not found: {path}"}
+    if not folder_path.is_dir():
+        return {"success": False, "error": f"Path is not a directory: {path}"}
+
+    warnings = []
+
+    try:
+        doc_files, discover_warnings = discover_doc_files(
+            folder_path,
+            extra_ignore_patterns=extra_ignore_patterns,
+            follow_symlinks=follow_symlinks,
+        )
+        warnings.extend(discover_warnings)
+
+        if not doc_files:
+            return {"success": False, "error": "No documentation files found"}
+
+        all_sections = []
+        doc_types: dict = {}
+        raw_files: dict = {}
+        parsed_files = []
+
+        for file_path in doc_files:
+            if not validate_path(folder_path, file_path):
+                continue
+
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="replace")
+            except Exception as e:
+                warnings.append(f"Failed to read {file_path}: {e}")
+                continue
+
+            try:
+                rel_path = file_path.relative_to(folder_path).as_posix()
+            except ValueError:
+                continue
+
+            ext = file_path.suffix.lower()
+            repo_name = folder_path.name
+            owner = "local"
+            repo_id = f"{owner}/{repo_name}"
+
+            try:
+                sections = parse_file(content, rel_path, repo_id)
+                if sections:
+                    all_sections.extend(sections)
+                    doc_types[ext] = doc_types.get(ext, 0) + 1
+                    raw_files[rel_path] = content
+                    parsed_files.append(rel_path)
+            except Exception as e:
+                warnings.append(f"Failed to parse {rel_path}: {e}")
+                continue
+
+        if not all_sections:
+            return {"success": False, "error": "No sections extracted from files"}
+
+        all_sections = summarize_sections(all_sections, use_ai=use_ai_summaries)
+
+        repo_name = folder_path.name
+        owner = "local"
+
+        store = DocStore(base_path=storage_path)
+        store.save_index(
+            owner=owner,
+            name=repo_name,
+            sections=all_sections,
+            raw_files=raw_files,
+            doc_types=doc_types,
+        )
+
+        latency_ms = int((time.time() - t0) * 1000)
+        result = {
+            "success": True,
+            "repo": f"{owner}/{repo_name}",
+            "folder_path": str(folder_path),
+            "indexed_at": store.load_index(owner, repo_name).indexed_at,
+            "file_count": len(parsed_files),
+            "section_count": len(all_sections),
+            "doc_types": doc_types,
+            "files": parsed_files[:20],
+            "_meta": {"latency_ms": latency_ms},
+        }
+
+        if warnings:
+            result["warnings"] = warnings
+        if len(doc_files) >= 500:
+            result["note"] = "Folder has many files; indexed first 500"
+
+        return result
+
+    except Exception as e:
+        return {"success": False, "error": f"Indexing failed: {str(e)}"}

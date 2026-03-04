@@ -1,0 +1,163 @@
+"""Tests for storage module."""
+
+import pytest
+import tempfile
+from pathlib import Path
+
+from jdocmunch_mcp.parser import parse_file
+from jdocmunch_mcp.storage.doc_store import DocStore, DocIndex
+from jdocmunch_mcp.storage.token_tracker import estimate_savings, cost_avoided
+
+
+SAMPLE_MD = """# Root
+
+Intro content.
+
+## Section A
+
+Content for A.
+
+### Subsection A1
+
+Deep content.
+
+## Section B
+
+Content for B.
+"""
+
+
+def make_store(tmp_path):
+    return DocStore(base_path=str(tmp_path))
+
+
+def make_sections_and_files():
+    sections = parse_file(SAMPLE_MD, "README.md", "test/repo")
+    raw_files = {"README.md": SAMPLE_MD}
+    doc_types = {".md": 1}
+    return sections, raw_files, doc_types
+
+
+class TestDocStore:
+    def test_save_and_load(self, tmp_path):
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+
+        index = store.save_index("test", "repo", sections, raw_files, doc_types)
+        assert index is not None
+        assert index.repo == "test/repo"
+
+        loaded = store.load_index("test", "repo")
+        assert loaded is not None
+        assert loaded.repo == "test/repo"
+        assert len(loaded.sections) == len(sections)
+
+    def test_section_content_retrieval(self, tmp_path):
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+        store.save_index("test", "repo", sections, raw_files, doc_types)
+
+        index = store.load_index("test", "repo")
+        assert index is not None
+
+        # Pick a non-empty section
+        target = next((s for s in index.sections if s.get("title") == "Section A"), None)
+        assert target is not None
+
+        content = store.get_section_content("test", "repo", target["id"])
+        assert content is not None
+        assert "Content for A" in content
+
+    def test_list_repos(self, tmp_path):
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+        store.save_index("test", "repo", sections, raw_files, doc_types)
+        repos = store.list_repos()
+        assert len(repos) == 1
+        assert repos[0]["repo"] == "test/repo"
+
+    def test_delete_index(self, tmp_path):
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+        store.save_index("test", "repo", sections, raw_files, doc_types)
+        deleted = store.delete_index("test", "repo")
+        assert deleted is True
+        assert store.load_index("test", "repo") is None
+
+    def test_atomic_write(self, tmp_path):
+        """Save should leave no .tmp files on success."""
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+        store.save_index("test", "repo", sections, raw_files, doc_types)
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert len(tmp_files) == 0
+
+    def test_path_traversal_protection(self, tmp_path):
+        """Unsafe doc paths should raise ValueError."""
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+        raw_files["../../etc/passwd"] = "evil"
+        with pytest.raises(ValueError):
+            store.save_index("test", "repo", sections, raw_files, doc_types)
+
+    def test_resolve_repo_slash(self, tmp_path):
+        store = make_store(tmp_path)
+        owner, name = store._resolve_repo("foo/bar")
+        assert owner == "foo"
+        assert name == "bar"
+
+    def test_resolve_repo_bare(self, tmp_path):
+        store = make_store(tmp_path)
+        sections, raw_files, doc_types = make_sections_and_files()
+        store.save_index("local", "myrepo", sections, raw_files, doc_types)
+        owner, name = store._resolve_repo("myrepo")
+        assert owner == "local"
+        assert name == "myrepo"
+
+
+class TestDocIndexSearch:
+    def setup_method(self):
+        self.sections, _, _ = make_sections_and_files()
+        self.index = DocIndex(
+            repo="test/repo",
+            owner="test",
+            name="repo",
+            indexed_at="2026-01-01",
+            doc_paths=["README.md"],
+            doc_types={".md": 1},
+            sections=[s.to_dict() for s in self.sections],
+        )
+
+    def test_search_by_title(self):
+        results = self.index.search("Section A")
+        assert len(results) > 0
+        assert any(r["title"] == "Section A" for r in results)
+
+    def test_search_case_insensitive(self):
+        results = self.index.search("section a")
+        assert len(results) > 0
+
+    def test_search_no_content_in_results(self):
+        results = self.index.search("content")
+        for r in results:
+            assert "content" not in r
+
+    def test_search_max_results(self):
+        results = self.index.search("content", max_results=2)
+        assert len(results) <= 2
+
+    def test_search_empty_query(self):
+        results = self.index.search("xyzzy_nonexistent_42")
+        assert results == []
+
+
+class TestTokenTracker:
+    def test_estimate_savings(self):
+        assert estimate_savings(1000, 200) == (1000 - 200) // 4
+        assert estimate_savings(100, 200) == 0  # no negative savings
+
+    def test_cost_avoided(self):
+        ca = cost_avoided(1000, 5000)
+        assert "cost_avoided" in ca
+        assert "total_cost_avoided" in ca
+        assert "claude_opus" in ca["cost_avoided"]

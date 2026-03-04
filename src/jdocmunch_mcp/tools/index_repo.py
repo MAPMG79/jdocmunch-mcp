@@ -1,0 +1,221 @@
+"""Index GitHub repository tool — fetch, parse, summarize, save."""
+
+import asyncio
+import os
+import time
+from typing import Optional
+from urllib.parse import urlparse
+
+import httpx
+
+from ..parser import parse_file, ALL_EXTENSIONS
+from ..security import is_secret_file
+from ..storage import DocStore
+from ..summarizer import summarize_sections
+
+
+SKIP_PATTERNS = [
+    "node_modules/", "vendor/", "venv/", ".venv/", "__pycache__/",
+    "dist/", "build/", ".git/", ".tox/", ".mypy_cache/",
+    ".gradle/", "target/",
+]
+
+
+def parse_github_url(url: str) -> tuple:
+    """Extract (owner, repo) from GitHub URL or owner/repo string."""
+    url = url.removesuffix(".git")
+    if "/" in url and "://" not in url:
+        parts = url.split("/")
+        return parts[0], parts[1]
+    parsed = urlparse(url)
+    path = parsed.path.strip("/")
+    parts = path.split("/")
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    raise ValueError(f"Could not parse GitHub URL: {url}")
+
+
+def _should_skip(path: str) -> bool:
+    for pat in SKIP_PATTERNS:
+        if pat in path:
+            return True
+    return False
+
+
+async def fetch_repo_tree(owner: str, repo: str, token: Optional[str] = None) -> list:
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/HEAD"
+    params = {"recursive": "1"}
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        return response.json().get("tree", [])
+
+
+async def fetch_file_content(
+    owner: str, repo: str, path: str, token: Optional[str] = None
+) -> str:
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    headers = {"Accept": "application/vnd.github.v3.raw"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        return response.text
+
+
+async def fetch_gitignore(
+    owner: str, repo: str, token: Optional[str] = None
+) -> Optional[str]:
+    try:
+        return await fetch_file_content(owner, repo, ".gitignore", token)
+    except Exception:
+        return None
+
+
+def discover_doc_files(tree_entries: list, max_files: int = 500) -> list:
+    """Filter tree entries to doc files."""
+    import pathspec
+
+    files = []
+    for entry in tree_entries:
+        if entry.get("type") != "blob":
+            continue
+        path = entry.get("path", "")
+        size = entry.get("size", 0)
+
+        import os as _os
+        _, ext = _os.path.splitext(path)
+        if ext.lower() not in ALL_EXTENSIONS:
+            continue
+
+        if _should_skip(path):
+            continue
+
+        if is_secret_file(path):
+            continue
+
+        if size > 500 * 1024:
+            continue
+
+        files.append(path)
+
+    return files[:max_files]
+
+
+async def index_repo(
+    url: str,
+    use_ai_summaries: bool = True,
+    github_token: Optional[str] = None,
+    storage_path: Optional[str] = None,
+) -> dict:
+    """Index a GitHub repository's documentation.
+
+    Args:
+        url: GitHub repository URL or owner/repo string.
+        use_ai_summaries: Whether to use AI for section summaries.
+        github_token: GitHub API token (optional).
+        storage_path: Custom storage path.
+
+    Returns:
+        Dict with indexing results.
+    """
+    t0 = time.time()
+
+    try:
+        owner, repo = parse_github_url(url)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
+    if not github_token:
+        github_token = os.environ.get("GITHUB_TOKEN")
+
+    warnings = []
+
+    try:
+        try:
+            tree_entries = await fetch_repo_tree(owner, repo, github_token)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return {"success": False, "error": f"Repository not found: {owner}/{repo}"}
+            elif e.response.status_code == 403:
+                return {"success": False, "error": "GitHub API rate limit exceeded. Set GITHUB_TOKEN."}
+            raise
+
+        source_files = discover_doc_files(tree_entries)
+        if not source_files:
+            return {"success": False, "error": "No documentation files found"}
+
+        semaphore = asyncio.Semaphore(10)
+
+        async def fetch_with_limit(path: str) -> tuple:
+            async with semaphore:
+                try:
+                    content = await fetch_file_content(owner, repo, path, github_token)
+                    return path, content
+                except Exception:
+                    return path, ""
+
+        tasks = [fetch_with_limit(p) for p in source_files]
+        file_contents = await asyncio.gather(*tasks)
+
+        all_sections = []
+        doc_types: dict = {}
+        raw_files: dict = {}
+        parsed_files = []
+        repo_id = f"{owner}/{repo}"
+
+        import os as _os
+        for path, content in file_contents:
+            if not content:
+                continue
+            _, ext = _os.path.splitext(path)
+            if ext.lower() not in ALL_EXTENSIONS:
+                continue
+            try:
+                sections = parse_file(content, path, repo_id)
+                if sections:
+                    all_sections.extend(sections)
+                    doc_types[ext.lower()] = doc_types.get(ext.lower(), 0) + 1
+                    raw_files[path] = content
+                    parsed_files.append(path)
+            except Exception:
+                warnings.append(f"Failed to parse {path}")
+                continue
+
+        if not all_sections:
+            return {"success": False, "error": "No sections extracted"}
+
+        all_sections = summarize_sections(all_sections, use_ai=use_ai_summaries)
+
+        store = DocStore(base_path=storage_path)
+        store.save_index(
+            owner=owner,
+            name=repo,
+            sections=all_sections,
+            raw_files=raw_files,
+            doc_types=doc_types,
+        )
+
+        latency_ms = int((time.time() - t0) * 1000)
+        result = {
+            "success": True,
+            "repo": f"{owner}/{repo}",
+            "indexed_at": store.load_index(owner, repo).indexed_at,
+            "file_count": len(parsed_files),
+            "section_count": len(all_sections),
+            "doc_types": doc_types,
+            "files": parsed_files[:20],
+            "_meta": {"latency_ms": latency_ms},
+        }
+
+        if warnings:
+            result["warnings"] = warnings
+
+        return result
+
+    except Exception as e:
+        return {"success": False, "error": f"Indexing failed: {str(e)}"}
