@@ -1,0 +1,292 @@
+# User Guide
+
+## Installation
+
+```bash
+pip install jdocmunch-mcp
+```
+
+Or with `uvx` (no install required):
+
+```bash
+uvx jdocmunch-mcp --help
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/jgravelle/jdocmunch-mcp.git
+cd jdocmunch-mcp
+pip install -e .
+```
+
+---
+
+## Configuration
+
+> **PATH note:** MCP clients often run with a limited environment where `jdocmunch-mcp` may not be found even if it works in your terminal. Using [`uvx`](https://github.com/astral-sh/uv) is the recommended approach — it resolves the package on demand without requiring anything to be on your system PATH.
+
+### Claude Desktop / Claude Code
+
+Config file location:
+
+| OS      | Path |
+| ------- | ---- |
+| macOS   | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Linux   | `~/.config/claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+
+**Minimal config (no API keys needed):**
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"]
+    }
+  }
+}
+```
+
+**With optional AI summaries and GitHub auth:**
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_...",
+        "ANTHROPIC_API_KEY": "sk-ant-..."
+      }
+    }
+  }
+}
+```
+
+After saving the config, **restart Claude Desktop / Claude Code** for the server to appear.
+
+### VS Code
+
+Add to `.vscode/settings.json`:
+
+```json
+{
+  "mcp.servers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+### Google Antigravity
+
+1. Open the Agent pane → click the `⋯` menu → **MCP Servers** → **Manage MCP Servers**
+2. Click **View raw config** to open `mcp_config.json`
+3. Add the entry below, save, then restart the MCP server from the Manage MCPs pane
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"]
+    }
+  }
+}
+```
+
+---
+
+## Workflows
+
+### Index and Browse a Documentation Folder
+
+```
+index_local:         { "path": "/path/to/docs" }
+get_toc:             { "repo": "docs" }
+get_document_outline: { "repo": "docs", "doc_path": "README.md" }
+```
+
+### Index a GitHub Repository
+
+```
+index_repo:   { "url": "owner/repo" }
+get_toc_tree: { "repo": "owner/repo" }
+```
+
+### Find and Read a Section
+
+```
+search_sections: { "repo": "owner/repo", "query": "authentication" }
+get_section:     { "repo": "owner/repo", "section_id": "owner/repo::docs/auth.md::authentication#1" }
+```
+
+### Narrow Search to a Specific Document
+
+```
+search_sections: {
+  "repo": "owner/repo",
+  "query": "timeout",
+  "doc_path": "docs/configuration.md"
+}
+```
+
+### Batch Retrieve Related Sections
+
+```
+get_sections: {
+  "repo": "owner/repo",
+  "section_ids": [
+    "owner/repo::docs/config.md::database-settings#2",
+    "owner/repo::docs/config.md::connection-pool#2"
+  ]
+}
+```
+
+### Verify Content Hasn't Changed
+
+```
+get_section: {
+  "repo": "owner/repo",
+  "section_id": "owner/repo::README.md::installation#1",
+  "verify": true
+}
+```
+
+`_meta.content_verified` will be `true` if the source matches the stored hash and `false` if it has drifted since indexing.
+
+### Force Re-index
+
+```
+delete_index: { "repo": "owner/repo" }
+index_local:  { "path": "/path/to/docs" }
+```
+
+---
+
+## Tool Reference
+
+| Tool                  | Purpose                              | Key Parameters                                    |
+| --------------------- | ------------------------------------ | ------------------------------------------------- |
+| `index_local`         | Index local documentation folder     | `path`, `use_ai_summaries`, `extra_ignore_patterns`, `follow_symlinks` |
+| `index_repo`          | Index GitHub repository docs         | `url`, `use_ai_summaries`                         |
+| `list_repos`          | List all indexed documentation sets  | —                                                 |
+| `get_toc`             | Flat section list in document order  | `repo`                                            |
+| `get_toc_tree`        | Nested section tree per document     | `repo`                                            |
+| `get_document_outline`| Section hierarchy for one document   | `repo`, `doc_path`                                |
+| `search_sections`     | Weighted search across sections      | `repo`, `query`, `doc_path`, `max_results`        |
+| `get_section`         | Full content of one section          | `repo`, `section_id`, `verify`                    |
+| `get_sections`        | Batch content retrieval              | `repo`, `section_ids`, `verify`                   |
+| `delete_index`        | Delete index and cache               | `repo`                                            |
+
+---
+
+## Section IDs
+
+Section IDs follow the format:
+
+```
+{repo}::{doc_path}::{slug}#{level}
+```
+
+Examples:
+
+```
+owner/repo::README.md::installation#1
+owner/repo::docs/config.md::authentication-options#2
+local/myproject::guide.md::quick-start#1
+```
+
+IDs are returned by `get_toc`, `get_toc_tree`, `get_document_outline`, and `search_sections`. Pass them to `get_section` or `get_sections` to retrieve content.
+
+For local folders, `repo` defaults to `local/{folder-name}` — use the bare folder name when calling retrieval tools:
+
+```
+index_local: { "path": "/home/user/docs" }
+get_toc:     { "repo": "docs" }
+```
+
+---
+
+## Community Savings Meter
+
+jDocMunch contributes an anonymous token savings delta to a live global counter at [j.gravelle.us](https://j.gravelle.us) with each tool call. Only two values are ever sent: the tokens saved (a number) and a random anonymous install ID. No content, paths, repo names, or anything identifying is transmitted. Network failures are silent and never affect tool performance.
+
+The anonymous install ID is generated once and stored locally in `~/.doc-index/_savings.json`.
+
+To disable, set `JDOCMUNCH_SHARE_SAVINGS=0` in your MCP server env:
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"],
+      "env": {
+        "JDOCMUNCH_SHARE_SAVINGS": "0"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Troubleshooting
+
+**"Repo not found"**
+Check the repo identifier format. For local folders indexed as `local/myproject`, use `"repo": "myproject"` (bare name) or `"repo": "local/myproject"` (full form).
+
+**"No documentation files found"**
+The folder may not contain supported doc formats (`.md`, `.mdx`, `.txt`, `.rst`), or all files are excluded by skip patterns or `.gitignore`.
+
+**"No sections extracted from files"**
+Files may not contain headings. Plain-text files without recognized heading patterns produce a single root section.
+
+**Rate limiting on GitHub**
+Set `GITHUB_TOKEN` to increase GitHub API limits (5,000 requests/hour vs 60 unauthenticated).
+
+**AI summaries not working**
+Set `ANTHROPIC_API_KEY` (Claude Haiku) or `GOOGLE_API_KEY` (Gemini Flash). Anthropic takes priority if both are set. Without either key, summaries fall back to heading text or the title fallback.
+
+**Stale index**
+Use `delete_index` followed by `index_local` or `index_repo` to force a clean re-index.
+
+**Encoding issues**
+Files with invalid UTF-8 are handled safely using replacement characters.
+
+---
+
+## Storage
+
+Indexes are stored at `~/.doc-index/` (override with the `DOC_INDEX_PATH` environment variable):
+
+```
+~/.doc-index/
+├── {owner}/
+│   ├── {name}.json       # Index metadata + section metadata (no content)
+│   └── {name}/           # Raw doc files for byte-range content reads
+│       ├── README.md
+│       └── docs/
+│           └── guide.md
+└── _savings.json         # Cumulative token savings counter
+```
+
+---
+
+## Tips
+
+1. Start with `get_toc` or `get_toc_tree` to understand the structure of an indexed doc set.
+2. Use `get_document_outline` when you already know which document is relevant — lighter than a full TOC.
+3. Narrow `search_sections` with `doc_path` to avoid cross-document noise when searching within a known file.
+4. Batch-retrieve related sections with `get_sections` instead of repeated `get_section` calls.
+5. Use `verify: true` on `get_section` to detect whether the doc source has changed since indexing.
+6. For docs without AI summaries, `search_sections` still works well — it scores on heading text and content words.

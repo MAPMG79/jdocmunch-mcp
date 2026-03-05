@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from ..parser import parse_file, ALL_EXTENSIONS
+from ..parser import parse_file, preprocess_content, ALL_EXTENSIONS
 from ..security import is_secret_file
 from ..storage import DocStore
 from ..summarizer import summarize_sections
@@ -195,11 +195,12 @@ async def index_repo(
             if ext.lower() not in ALL_EXTENSIONS:
                 continue
             try:
-                sections = parse_file(content, path, repo_id)
+                parsed_content = preprocess_content(content, path)
+                sections = parse_file(parsed_content, path, repo_id)
                 if sections:
                     all_sections.extend(sections)
                     doc_types[ext.lower()] = doc_types.get(ext.lower(), 0) + 1
-                    raw_files[path] = content
+                    raw_files[path] = parsed_content
                     parsed_files.append(path)
             except Exception:
                 warnings.append(f"Failed to parse {path}")

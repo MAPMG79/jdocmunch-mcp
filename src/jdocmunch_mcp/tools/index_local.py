@@ -7,7 +7,7 @@ from typing import Optional
 
 import pathspec
 
-from ..parser import parse_file, ALL_EXTENSIONS
+from ..parser import parse_file, preprocess_content, ALL_EXTENSIONS
 from ..security import (
     validate_path,
     is_symlink_escape,
@@ -187,11 +187,12 @@ def index_local(
             repo_id = f"{owner}/{repo_name}"
 
             try:
-                sections = parse_file(content, rel_path, repo_id)
+                parsed_content = preprocess_content(content, rel_path)
+                sections = parse_file(parsed_content, rel_path, repo_id)
                 if sections:
                     all_sections.extend(sections)
                     doc_types[ext] = doc_types.get(ext, 0) + 1
-                    raw_files[rel_path] = content
+                    raw_files[rel_path] = parsed_content
                     parsed_files.append(rel_path)
             except Exception as e:
                 warnings.append(f"Failed to parse {rel_path}: {e}")
