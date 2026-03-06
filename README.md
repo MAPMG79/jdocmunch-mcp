@@ -1,4 +1,3 @@
-````md
 ## Stop Feeding Documentation Trees to Your AI
 
 Most AI agents still explore documentation the expensive way:
