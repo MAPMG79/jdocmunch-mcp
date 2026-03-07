@@ -140,7 +140,7 @@ def index_local(
     Returns:
         Dict with indexing results.
     """
-    t0 = time.time()
+    t0 = time.perf_counter()
     folder_path = Path(path).expanduser().resolve()
 
     if not folder_path.exists():
@@ -160,6 +160,10 @@ def index_local(
 
         if not doc_files:
             return {"success": False, "error": "No documentation files found"}
+
+        repo_name = folder_path.name
+        owner = "local"
+        repo_id = f"{owner}/{repo_name}"
 
         all_sections = []
         doc_types: dict = {}
@@ -182,9 +186,6 @@ def index_local(
                 continue
 
             ext = file_path.suffix.lower()
-            repo_name = folder_path.name
-            owner = "local"
-            repo_id = f"{owner}/{repo_name}"
 
             try:
                 parsed_content = preprocess_content(content, rel_path)
@@ -203,9 +204,6 @@ def index_local(
 
         all_sections = summarize_sections(all_sections, use_ai=use_ai_summaries)
 
-        repo_name = folder_path.name
-        owner = "local"
-
         store = DocStore(base_path=storage_path)
         saved = store.save_index(
             owner=owner,
@@ -215,7 +213,7 @@ def index_local(
             doc_types=doc_types,
         )
 
-        latency_ms = int((time.time() - t0) * 1000)
+        latency_ms = int((time.perf_counter() - t0) * 1000)
         result = {
             "success": True,
             "repo": f"{owner}/{repo_name}",

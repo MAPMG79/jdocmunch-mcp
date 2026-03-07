@@ -132,7 +132,7 @@ async def index_repo(
     Returns:
         Dict with indexing results.
     """
-    t0 = time.time()
+    t0 = time.perf_counter()
 
     try:
         owner, repo = parse_github_url(url)
@@ -220,7 +220,7 @@ async def index_repo(
             doc_types=doc_types,
         )
 
-        latency_ms = int((time.time() - t0) * 1000)
+        latency_ms = int((time.perf_counter() - t0) * 1000)
         result = {
             "success": True,
             "repo": f"{owner}/{repo}",

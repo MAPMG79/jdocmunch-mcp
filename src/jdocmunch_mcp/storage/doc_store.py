@@ -31,12 +31,13 @@ class DocIndex:
     index_version: int = INDEX_VERSION
     file_hashes: dict = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        # Build O(1) lookup dict once at load time
+        self._section_index: dict = {s["id"]: s for s in self.sections if "id" in s}
+
     def get_section(self, section_id: str) -> Optional[dict]:
-        """Find a section dict by ID."""
-        for sec in self.sections:
-            if sec.get("id") == section_id:
-                return sec
-        return None
+        """Find a section dict by ID (O(1))."""
+        return self._section_index.get(section_id)
 
     def search(self, query: str, doc_path: Optional[str] = None, max_results: int = 10) -> list:
         """Search sections with weighted scoring.
@@ -214,9 +215,13 @@ class DocStore:
             file_hashes=data.get("file_hashes", {}),
         )
 
-    def get_section_content(self, owner: str, name: str, section_id: str) -> Optional[str]:
-        """Read section content using stored byte offsets. O(1) — no re-parsing."""
-        index = self.load_index(owner, name)
+    def get_section_content(self, owner: str, name: str, section_id: str, _index: Optional["DocIndex"] = None) -> Optional[str]:
+        """Read section content using stored byte offsets. O(1) — no re-parsing.
+
+        Pass _index to avoid a redundant load_index() call when the caller
+        already holds a loaded index.
+        """
+        index = _index or self.load_index(owner, name)
         if not index:
             return None
 
