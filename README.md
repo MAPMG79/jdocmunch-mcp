@@ -30,6 +30,21 @@ Index once. Query cheaply forever.
 [![PyPI version](https://img.shields.io/pypi/v/jdocmunch-mcp)](https://pypi.org/project/jdocmunch-mcp/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/jdocmunch-mcp)](https://pypi.org/project/jdocmunch-mcp/)
 
+> ## Commercial licenses
+> jCodeMunch-MCP is **free for non-commercial use**.  Tip jar: (https://gravelle.gumroad.com/coffee)
+> 
+> **Commercial use requires a paid license.**
+>
+> **jCodeMunch-only licenses**
+> - [Builder](https://gravelle.gumroad.com/l/jCodeMunchMCP_builder) — 1 developer
+> - [Studio](https://gravelle.gumroad.com/l/jCodeMunchMCP_studio) — up to 5 developers
+> - [Platform](https://gravelle.gumroad.com/l/jCodeMunchMCP_platform) — org-wide internal deployment
+>
+> **Want both code and docs retrieval?**
+> - [Munch Duo Builder Bundle](https://gravelle.gumroad.com/l/MunchDuoBuilderBundle)
+> - [Munch Duo Studio Bundle](https://gravelle.gumroad.com/l/MunchDuoStudioBundle)
+> - [Munch Duo Platform Bundle](https://gravelle.gumroad.com/l/MunchDuoPlatformBundle)
+
 **Stop dumping documentation files into context windows. Start navigating docs structurally.**
 
 jDocMunch indexes documentation once by heading hierarchy and section structure, then gives MCP-compatible agents precise access to the explanations they actually need instead of forcing them to brute-read files.
