@@ -3,7 +3,7 @@
 See also: `C:\MCPs\CLAUDE.md` for universal workflow and shell conventions.
 
 ## Current State
-- **Version:** 1.0.1 (PyPI + GitHub)
+- **Version:** 1.1.0 (PyPI + GitHub)
 - **INDEX_VERSION:** 1
 - **Tests:** 201 passed
 - **Python:** >=3.10
@@ -52,7 +52,7 @@ src/jdocmunch_mcp/
 | `.adoc`, `.asciidoc`, `.asc` | asciidoc_parser (`=` heading levels) |
 | `.ipynb` | notebook_parser (JSON → markdown cells) |
 | `.html`, `.htm` | html_parser (BeautifulSoup, chrome stripped) |
-| `.yaml`, `.yml`, `.json` | openapi_parser (OpenAPI 3.x / Swagger 2.x, content-sniffed) |
+| `.yaml`, `.yml`, `.json` | openapi_parser (OpenAPI 3.x / Swagger 2.x, content-sniffed; plain YAML/JSON skipped) |
 
 ## Architecture Notes
 - `DocStore.detect_changes()` + `DocStore.incremental_save()` — incremental indexing
@@ -76,6 +76,7 @@ None currently open.
 | 0.1.1–0.1.4 | Pre-stable iterations (incremental indexing, O(1) lookup, perf fixes) |
 | 1.0.0 | Stable release — all 7 formats complete, 201 tests |
 | 1.0.1 | powered_by attribution added to tool responses |
+| 1.1.0 | OpenAPI 3.x / Swagger 2.x parser; .yaml/.yml/.json content-sniffed; 201 tests |
 
 ## Ecosystem Boundary
 - jdocmunch owns: section search, TOC, document outlines, doc file indexing
