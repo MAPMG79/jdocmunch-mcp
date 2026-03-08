@@ -291,6 +291,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         else:
             result = {"error": f"Unknown tool: {name}"}
 
+        if isinstance(result, dict):
+            result.setdefault("_meta", {})["powered_by"] = "jdocmunch-mcp by jgravelle · https://github.com/jgravelle/jdocmunch-mcp"
         return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     except Exception as e:
@@ -300,7 +302,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 async def run_server():
     """Run the MCP server."""
+    from jdocmunch_mcp import __version__
     from mcp.server.stdio import stdio_server
+    print(f"jdocmunch-mcp {__version__} by jgravelle · https://github.com/jgravelle/jdocmunch-mcp", file=sys.stderr)
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
