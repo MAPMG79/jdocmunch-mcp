@@ -3,9 +3,9 @@
 See also: `C:\MCPs\CLAUDE.md` for universal workflow and shell conventions.
 
 ## Current State
-- **Version:** 1.1.0 (PyPI + GitHub)
+- **Version:** 1.2.0 (PyPI + GitHub)
 - **INDEX_VERSION:** 1
-- **Tests:** 201 passed
+- **Tests:** 234 passed
 - **Python:** >=3.10
 
 ## Purpose
@@ -28,6 +28,8 @@ src/jdocmunch_mcp/
     html_parser.py             # HTML → text, chrome stripped
     text_parser.py             # Plain text paragraph splitting
     openapi_parser.py          # OpenAPI 3.x / Swagger 2.x (content-sniffed from .yaml/.json)
+    json_parser.py             # JSON/JSONC → markdown sections (non-OpenAPI .json + .jsonc)
+    xml_parser.py              # XML/SVG/XHTML → markdown sections
     hierarchy.py               # Parent/child heading relationships
   tools/
     index_local.py             # Local folder doc indexer
@@ -52,7 +54,10 @@ src/jdocmunch_mcp/
 | `.adoc`, `.asciidoc`, `.asc` | asciidoc_parser (`=` heading levels) |
 | `.ipynb` | notebook_parser (JSON → markdown cells) |
 | `.html`, `.htm` | html_parser (BeautifulSoup, chrome stripped) |
-| `.yaml`, `.yml`, `.json` | openapi_parser (OpenAPI 3.x / Swagger 2.x, content-sniffed; plain YAML/JSON skipped) |
+| `.yaml`, `.yml` | openapi_parser (OpenAPI 3.x / Swagger 2.x, content-sniffed; plain YAML skipped) |
+| `.json` | openapi_parser if OpenAPI/Swagger; json_parser otherwise |
+| `.jsonc` | json_parser (JSONC comments stripped first) |
+| `.xml`, `.svg`, `.xhtml` | xml_parser (element hierarchy → sections; SVG uses `<title>`/`<desc>`) |
 
 ## Architecture Notes
 - `DocStore.detect_changes()` + `DocStore.incremental_save()` — incremental indexing
@@ -66,6 +71,7 @@ src/jdocmunch_mcp/
 | # | What |
 |---|------|
 | #1 | MCP version conflict with jcodemunch-mcp — fixed |
+| #2 | JSON/JSONC/XML/SVG indexing — shipped in 1.2.0 |
 
 ### Open PRs / Issues
 None currently open.
@@ -77,6 +83,7 @@ None currently open.
 | 1.0.0 | Stable release — all 7 formats complete, 201 tests |
 | 1.0.1 | powered_by attribution added to tool responses |
 | 1.1.0 | OpenAPI 3.x / Swagger 2.x parser; .yaml/.yml/.json content-sniffed; 201 tests |
+| 1.2.0 | JSON/JSONC parser; XML/SVG/XHTML parser; 234 tests |
 
 ## Ecosystem Boundary
 - jdocmunch owns: section search, TOC, document outlines, doc file indexing
