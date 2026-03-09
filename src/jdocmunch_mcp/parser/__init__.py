@@ -6,6 +6,8 @@ from .asciidoc_parser import parse_asciidoc
 from .notebook_parser import convert_notebook
 from .html_parser import convert_html
 from .openapi_parser import convert_openapi, sniff_openapi
+from .json_parser import convert_json
+from .xml_parser import convert_xml
 from .text_parser import parse_text
 from .hierarchy import wire_hierarchy
 
@@ -25,19 +27,26 @@ ALL_EXTENSIONS = {
     ".htm": "html",
     ".yaml": "openapi",  # indexed only when content sniff confirms OpenAPI/Swagger
     ".yml": "openapi",
-    ".json": "openapi",
+    ".json": "openapi",  # OpenAPI specs get full treatment; plain JSON falls back to json parser
+    ".jsonc": "json",
+    ".xml": "xml",
+    ".svg": "xml",
+    ".xhtml": "xml",
 }
 
 
 def preprocess_content(content: str, doc_path: str) -> str:
     """Preprocess file content before parsing and storage.
 
-    For .ipynb and .html files, converts to a Markdown text representation so
-    that byte offsets computed during parsing are valid against the stored raw
-    file. For .yaml/.yml/.json files that are OpenAPI/Swagger specs, converts
-    to Markdown; non-OpenAPI YAML/JSON is returned unchanged (parse_file will
-    produce no sections for them). For all other formats, returns content
-    unchanged.
+    Converts structured formats to Markdown so that parse_file() can use the
+    Markdown parser uniformly:
+    - .ipynb / .html → Markdown via notebook/HTML converters
+    - .xml / .svg / .xhtml → Markdown via XML converter
+    - .jsonc → Markdown via JSON converter (JSONC comments stripped)
+    - .json (OpenAPI/Swagger) → Markdown via OpenAPI converter
+    - .json (plain) → Markdown via JSON converter
+    - .yaml / .yml (OpenAPI/Swagger) → Markdown via OpenAPI converter
+    - All other formats → returned unchanged
 
     Args:
         content: Raw file content.
@@ -52,8 +61,14 @@ def preprocess_content(content: str, doc_path: str) -> str:
         return convert_notebook(content)
     if ext in (".html", ".htm"):
         return convert_html(content)
+    if ext in (".xml", ".svg", ".xhtml"):
+        return convert_xml(content, doc_path)
+    if ext == ".jsonc":
+        return convert_json(content, doc_path)
     if sniff_openapi(content, ext):
         return convert_openapi(content)
+    if ext == ".json":
+        return convert_json(content, doc_path)
     return content
 
 
@@ -87,6 +102,12 @@ def parse_file(content: str, doc_path: str, repo: str) -> list:
     elif doc_type == "openapi":
         # content is preprocessed markdown if OpenAPI; raw YAML/JSON otherwise
         # Only parse if it looks like converted markdown (starts with a heading)
+        if content.lstrip().startswith("# "):
+            sections = parse_markdown(content, doc_path, repo)
+        else:
+            sections = []
+    elif doc_type in ("json", "xml"):
+        # content already preprocessed to markdown by preprocess_content()
         if content.lstrip().startswith("# "):
             sections = parse_markdown(content, doc_path, repo)
         else:

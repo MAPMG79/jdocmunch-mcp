@@ -829,3 +829,253 @@ class TestOpenAPIDispatch:
         titles = [s.title for s in sections]
         assert "Schemas" in titles
         assert "Pet" in titles
+
+# ── JSON / JSONC ──────────────────────────────────────────────────────────────
+
+_PACKAGE_JSON = """\
+{
+  "name": "my-app",
+  "version": "1.2.3",
+  "description": "A test package",
+  "scripts": {
+    "build": "webpack",
+    "test": "jest"
+  },
+  "dependencies": {
+    "react": "^18.0.0"
+  }
+}
+"""
+
+_TSCONFIG_JSONC = """\
+// TypeScript configuration
+{
+  /* Compiler options */
+  "compilerOptions": {
+    "target": "ES2020",
+    "strict": true
+  },
+  "include": ["src/**/*"]
+}
+"""
+
+_ARRAY_JSON = '[{"name": "Alice", "role": "admin"}, {"name": "Bob", "role": "user"}]'
+
+_SCALAR_JSON = '"just a string"'
+
+
+class TestConvertJSON:
+    def test_title_from_filename(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_PACKAGE_JSON, "package.json")
+        assert md.startswith("# package.json")
+
+    def test_top_level_keys_become_sections(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_PACKAGE_JSON, "package.json")
+        assert "## name" in md
+        assert "## version" in md
+        assert "## description" in md
+
+    def test_nested_object_becomes_subsection(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_PACKAGE_JSON, "package.json")
+        assert "### build" in md or "## scripts" in md
+
+    def test_scalar_values_rendered(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_PACKAGE_JSON, "package.json")
+        assert "1.2.3" in md
+        assert "A test package" in md
+
+    def test_array_root_renders_items(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_ARRAY_JSON, "users.json")
+        assert "# users.json" in md
+        assert "Alice" in md
+        assert "Bob" in md
+
+    def test_scalar_root_returns_empty(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        assert convert_json(_SCALAR_JSON, "val.json") == ""
+
+    def test_invalid_json_returns_empty(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        assert convert_json("{not valid json}", "bad.json") == ""
+
+    def test_jsonc_comments_stripped(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_TSCONFIG_JSONC, "tsconfig.json")
+        assert "# tsconfig.json" in md
+        assert "## compilerOptions" in md
+
+    def test_empty_doc_path_uses_fallback_title(self):
+        from jdocmunch_mcp.parser.json_parser import convert_json
+        md = convert_json(_PACKAGE_JSON, "")
+        assert md.startswith("# JSON Document")
+
+
+class TestStripJSONC:
+    def test_block_comment_removed(self):
+        from jdocmunch_mcp.parser.json_parser import _strip_jsonc
+        result = _strip_jsonc('{"a": /* comment */ 1}')
+        assert "comment" not in result
+        assert '"a"' in result
+
+    def test_line_comment_removed(self):
+        from jdocmunch_mcp.parser.json_parser import _strip_jsonc
+        result = _strip_jsonc('{"a": 1} // trailing')
+        assert "trailing" not in result
+
+    def test_url_string_not_stripped(self):
+        from jdocmunch_mcp.parser.json_parser import _strip_jsonc
+        # URLs inside strings must not be treated as line comments
+        content = '{"url": "https://example.com/path"}'
+        result = _strip_jsonc(content)
+        assert "https://example.com/path" in result
+
+
+class TestJSONDispatch:
+    def test_plain_json_produces_sections(self):
+        preprocessed = preprocess_content(_PACKAGE_JSON, "package.json")
+        sections = parse_file(preprocessed, "package.json", "myrepo")
+        assert len(sections) > 0
+
+    def test_plain_json_title_section(self):
+        preprocessed = preprocess_content(_PACKAGE_JSON, "package.json")
+        sections = parse_file(preprocessed, "package.json", "myrepo")
+        titles = [s.title for s in sections]
+        assert "package.json" in titles
+
+    def test_jsonc_produces_sections(self):
+        preprocessed = preprocess_content(_TSCONFIG_JSONC, "tsconfig.jsonc")
+        sections = parse_file(preprocessed, "tsconfig.jsonc", "myrepo")
+        assert len(sections) > 0
+
+    def test_openapi_json_still_works(self):
+        # Regression: OpenAPI JSON must still be routed to openapi parser
+        preprocessed = preprocess_content(_SWAGGER2_JSON, "swagger.json")
+        sections = parse_file(preprocessed, "swagger.json", "myrepo")
+        titles = [s.title for s in sections]
+        assert "Simple API" in titles
+
+    def test_non_openapi_yaml_still_produces_no_sections(self):
+        content = "name: myapp\nversion: 1.0\n"
+        preprocessed = preprocess_content(content, "config.yaml")
+        sections = parse_file(preprocessed, "config.yaml", "myrepo")
+        assert sections == []
+
+
+# ── XML / SVG ─────────────────────────────────────────────────────────────────
+
+_SIMPLE_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<config version="2.0" env="production">
+  <database host="localhost" port="5432">
+    <name>mydb</name>
+    <pool size="10"/>
+  </database>
+  <cache enabled="true" ttl="300"/>
+</config>
+"""
+
+_SVG_DOC = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <title>My Diagram</title>
+  <desc>A simple test SVG diagram</desc>
+  <g id="layer1">
+    <rect id="box" x="10" y="10" width="80" height="80"/>
+    <text id="label" x="50" y="50">Hello</text>
+  </g>
+</svg>
+"""
+
+_INVALID_XML = "<unclosed><tag>"
+
+
+class TestConvertXML:
+    def test_xml_title_from_filename(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SIMPLE_XML, "config.xml")
+        assert "# config.xml" in md
+
+    def test_xml_root_element_noted(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SIMPLE_XML, "config.xml")
+        assert "config" in md
+
+    def test_xml_child_elements_become_sections(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SIMPLE_XML, "config.xml")
+        assert "database" in md
+        assert "cache" in md
+
+    def test_xml_attributes_rendered(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SIMPLE_XML, "config.xml")
+        assert "localhost" in md or "host" in md
+
+    def test_xml_text_content_rendered(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SIMPLE_XML, "config.xml")
+        assert "mydb" in md
+
+    def test_invalid_xml_returns_empty(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        assert convert_xml(_INVALID_XML, "bad.xml") == ""
+
+    def test_svg_uses_title_element(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SVG_DOC, "diagram.svg")
+        assert "# My Diagram" in md
+
+    def test_svg_desc_included(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SVG_DOC, "diagram.svg")
+        assert "A simple test SVG diagram" in md
+
+    def test_svg_metadata_section(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SVG_DOC, "diagram.svg")
+        assert "## Metadata" in md
+        assert "viewBox" in md
+
+    def test_svg_elements_section(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SVG_DOC, "diagram.svg")
+        assert "## Elements" in md
+
+    def test_svg_named_elements_labelled(self):
+        from jdocmunch_mcp.parser.xml_parser import convert_xml
+        md = convert_xml(_SVG_DOC, "diagram.svg")
+        assert "layer1" in md or "g" in md
+
+
+class TestXMLDispatch:
+    def test_xml_produces_sections(self):
+        preprocessed = preprocess_content(_SIMPLE_XML, "config.xml")
+        sections = parse_file(preprocessed, "config.xml", "myrepo")
+        assert len(sections) > 0
+
+    def test_xml_root_title_section(self):
+        preprocessed = preprocess_content(_SIMPLE_XML, "config.xml")
+        sections = parse_file(preprocessed, "config.xml", "myrepo")
+        titles = [s.title for s in sections]
+        assert "config.xml" in titles
+
+    def test_svg_produces_sections(self):
+        preprocessed = preprocess_content(_SVG_DOC, "diagram.svg")
+        sections = parse_file(preprocessed, "diagram.svg", "myrepo")
+        assert len(sections) > 0
+
+    def test_svg_title_section(self):
+        preprocessed = preprocess_content(_SVG_DOC, "diagram.svg")
+        sections = parse_file(preprocessed, "diagram.svg", "myrepo")
+        titles = [s.title for s in sections]
+        assert "My Diagram" in titles
+
+    def test_invalid_xml_produces_no_sections(self):
+        preprocessed = preprocess_content(_INVALID_XML, "bad.xml")
+        sections = parse_file(preprocessed, "bad.xml", "myrepo")
+        assert sections == []
