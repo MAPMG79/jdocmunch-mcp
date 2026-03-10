@@ -27,6 +27,7 @@ Index once. Query cheaply forever.
 ![License](https://img.shields.io/badge/license-dual--use-blue)
 ![MCP](https://img.shields.io/badge/MCP-compatible-purple)
 ![Local-first](https://img.shields.io/badge/local--first-yes-brightgreen)
+![jMRI](https://img.shields.io/badge/jMRI-Full-blueviolet)
 [![PyPI version](https://img.shields.io/pypi/v/jdocmunch-mcp)](https://pypi.org/project/jdocmunch-mcp/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/jdocmunch-mcp)](https://pypi.org/project/jdocmunch-mcp/)
 
@@ -133,25 +134,27 @@ They need better navigation.
 
 ## How it works
 
-1. **Discovery**  
+jDocMunch implements **[jMRI-Full](https://dev.to/jgravelle/your-ai-agent-is-dumpster-diving-through-your-code-326f)** — the open specification for structured retrieval MCP servers. jMRI-Full covers the full stack: discover, search, retrieve, and metadata operations with batch retrieval, hash-based drift detection, byte-offset addressing, and a complete `_meta` envelope on every call.
+
+1. **Discovery**
    GitHub API or local directory walk
 
-2. **Security filtering**  
+2. **Security filtering**
    Traversal protection, secret exclusion, binary detection
 
-3. **Parsing**  
+3. **Parsing**
    Heading-based section splitting (`#`, setext, and MDX-aware preprocessing)
 
-4. **Hierarchy wiring**  
+4. **Hierarchy wiring**
    Parent/child relationships established
 
-5. **Summarization**  
+5. **Summarization**
    Heading text → AI batch summaries → title fallback
 
-6. **Storage**  
+6. **Storage**
    JSON index + raw files stored locally under `~/.doc-index/`
 
-7. **Retrieval**  
+7. **Retrieval**
    O(1) byte-offset seeking via stable section IDs
 
 ---
