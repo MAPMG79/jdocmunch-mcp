@@ -400,6 +400,12 @@ JDOCMUNCH_SHARE_SAVINGS=0
 
 ---
 
+## Contributing
+
+PRs welcome! All contributors must sign the [Contributor License Agreement](https://cla-assistant.io/jgravelle/jdocmunch-mcp) before their PR can be merged — CLA Assistant will prompt you automatically. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
 ## Documentation
 
 * [USER_GUIDE.md](USER_GUIDE.md)
