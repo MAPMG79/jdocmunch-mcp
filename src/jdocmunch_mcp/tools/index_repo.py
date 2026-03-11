@@ -12,6 +12,7 @@ from ..parser import parse_file, preprocess_content, ALL_EXTENSIONS
 from ..security import is_secret_file
 from ..storage import DocStore
 from ..summarizer import summarize_sections
+from ..embeddings import embed_sections, get_provider_name
 from ._constants import SKIP_PATTERNS
 
 
@@ -118,6 +119,7 @@ def discover_doc_files(tree_entries: list, max_files: int = 500, gitignore_spec=
 async def index_repo(
     url: str,
     use_ai_summaries: bool = True,
+    use_embeddings: bool = False,
     github_token: Optional[str] = None,
     storage_path: Optional[str] = None,
     incremental: bool = True,
@@ -233,6 +235,8 @@ async def index_repo(
                     warnings.append(f"Failed to parse {path}")
 
             new_sections = summarize_sections(new_sections, use_ai=use_ai_summaries)
+            if use_embeddings:
+                new_sections = embed_sections(new_sections)
 
             updated = store.incremental_save(
                 owner=owner, name=repo,
@@ -248,6 +252,7 @@ async def index_repo(
                 "changed": len(changed), "new": len(new), "deleted": len(deleted),
                 "section_count": len(updated.sections) if updated else 0,
                 "indexed_at": updated.indexed_at if updated else "",
+                "semantic_search": use_embeddings and get_provider_name() is not None,
                 "_meta": {"latency_ms": latency_ms},
             }
             if warnings:
@@ -276,6 +281,8 @@ async def index_repo(
             return {"success": False, "error": "No sections extracted"}
 
         all_sections = summarize_sections(all_sections, use_ai=use_ai_summaries)
+        if use_embeddings:
+            all_sections = embed_sections(all_sections)
 
         saved = store.save_index(
             owner=owner,
@@ -294,6 +301,7 @@ async def index_repo(
             "section_count": len(all_sections),
             "doc_types": doc_types,
             "files": parsed_files[:20],
+            "semantic_search": use_embeddings and get_provider_name() is not None,
             "_meta": {"latency_ms": latency_ms},
         }
 

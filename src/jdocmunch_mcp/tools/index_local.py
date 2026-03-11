@@ -17,6 +17,7 @@ from ..security import (
 )
 from ..storage import DocStore
 from ..summarizer import summarize_sections
+from ..embeddings import embed_sections, get_provider_name
 from ._constants import SKIP_PATTERNS
 
 
@@ -124,6 +125,7 @@ def discover_doc_files(
 def index_local(
     path: str,
     use_ai_summaries: bool = True,
+    use_embeddings: bool = False,
     storage_path: Optional[str] = None,
     extra_ignore_patterns: Optional[list] = None,
     follow_symlinks: bool = False,
@@ -218,6 +220,8 @@ def index_local(
                     warnings.append(f"Failed to parse {rel_path}: {e}")
 
             new_sections = summarize_sections(new_sections, use_ai=use_ai_summaries)
+            if use_embeddings:
+                new_sections = embed_sections(new_sections)
 
             updated = store.incremental_save(
                 owner=owner, name=repo_name,
@@ -234,6 +238,7 @@ def index_local(
                 "changed": len(changed), "new": len(new), "deleted": len(deleted),
                 "section_count": len(updated.sections) if updated else 0,
                 "indexed_at": updated.indexed_at if updated else "",
+                "semantic_search": use_embeddings and get_provider_name() is not None,
                 "_meta": {"latency_ms": latency_ms},
             }
             if warnings:
@@ -262,6 +267,8 @@ def index_local(
             return {"success": False, "error": "No sections extracted from files"}
 
         all_sections = summarize_sections(all_sections, use_ai=use_ai_summaries)
+        if use_embeddings:
+            all_sections = embed_sections(all_sections)
 
         saved = store.save_index(
             owner=owner,
@@ -281,6 +288,7 @@ def index_local(
             "section_count": len(all_sections),
             "doc_types": doc_types,
             "files": parsed_files[:20],
+            "semantic_search": use_embeddings and get_provider_name() is not None,
             "_meta": {"latency_ms": latency_ms},
         }
 

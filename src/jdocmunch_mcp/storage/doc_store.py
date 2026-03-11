@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..parser.sections import Section
+from ..embeddings import embed_query, cosine_similarity
 
 INDEX_VERSION = 1
 
@@ -39,19 +40,46 @@ class DocIndex:
         """Find a section dict by ID (O(1))."""
         return self._section_index.get(section_id)
 
+    def _has_embeddings(self) -> bool:
+        """Return True if at least some sections have embeddings stored."""
+        return any(s.get("embedding") for s in self.sections)
+
     def search(self, query: str, doc_path: Optional[str] = None, max_results: int = 10) -> list:
-        """Search sections with weighted scoring.
+        """Search sections. Uses semantic (cosine similarity) when embeddings exist,
+        otherwise falls back to weighted keyword scoring.
 
-        Scoring weights:
-          title exact match:    +20
-          title substring:      +10
-          title word overlap:   +5 per word
-          summary match:        +8 (substring), +2 per word
-          tag match:            +3 per matching tag
-          content word match:   +1 per word (capped to avoid noise)
-
-        Returns sections sorted by score descending, with content excluded.
+        Returns sections sorted by relevance, with content and embedding excluded.
         """
+        if self._has_embeddings():
+            results = self._semantic_search(query, doc_path, max_results)
+            if results:
+                return results
+        return self._lexical_search(query, doc_path, max_results)
+
+    def _semantic_search(self, query: str, doc_path: Optional[str], max_results: int) -> list:
+        """Cosine-similarity search using stored section embeddings."""
+        query_vec = embed_query(query)
+        if not query_vec:
+            return []
+
+        scored = []
+        for sec in self.sections:
+            if doc_path and sec.get("doc_path") != doc_path:
+                continue
+            sec_emb = sec.get("embedding")
+            if not sec_emb:
+                continue
+            score = cosine_similarity(query_vec, sec_emb)
+            scored.append((score, sec))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [
+            {k: v for k, v in sec.items() if k not in ("content", "embedding")}
+            for _, sec in scored[:max_results]
+        ]
+
+    def _lexical_search(self, query: str, doc_path: Optional[str], max_results: int) -> list:
+        """Weighted keyword scoring (original algorithm)."""
         query_lower = query.lower()
         query_words = set(query_lower.split())
         scored = []
@@ -59,17 +87,15 @@ class DocIndex:
         for sec in self.sections:
             if doc_path and sec.get("doc_path") != doc_path:
                 continue
-
             score = self._score_section(sec, query_lower, query_words)
             if score > 0:
                 scored.append((score, sec))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        results = []
-        for _, sec in scored[:max_results]:
-            summary_sec = {k: v for k, v in sec.items() if k != "content"}
-            results.append(summary_sec)
-        return results
+        return [
+            {k: v for k, v in sec.items() if k not in ("content", "embedding")}
+            for _, sec in scored[:max_results]
+        ]
 
     def _score_section(self, sec: dict, query_lower: str, query_words: set) -> int:
         score = 0

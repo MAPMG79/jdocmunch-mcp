@@ -23,10 +23,11 @@ class Section:
     tags: list = field(default_factory=list)
     references: list = field(default_factory=list)
     content_hash: str = ""
+    embedding: list = field(default_factory=list)  # semantic embedding vector (empty = not embedded)
 
     def to_dict(self) -> dict:
         """Serialize to a JSON-safe dict."""
-        return {
+        d = {
             "id": self.id,
             "repo": self.repo,
             "doc_path": self.doc_path,
@@ -42,6 +43,9 @@ class Section:
             "references": self.references,
             "content_hash": self.content_hash,
         }
+        if self.embedding:
+            d["embedding"] = self.embedding
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> "Section":
@@ -61,6 +65,7 @@ class Section:
             tags=data.get("tags", []),
             references=data.get("references", []),
             content_hash=data.get("content_hash", ""),
+            embedding=data.get("embedding", []),
         )
 
 

@@ -32,7 +32,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="index_local",
-            description="Index a local folder containing documentation files (.md, .txt, .rst). Parses by heading hierarchy into sections for efficient retrieval.",
+            description="Index a local folder containing documentation files (.md, .txt, .rst). Parses by heading hierarchy into sections for efficient retrieval. Set use_embeddings=true to enable semantic search.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -44,6 +44,11 @@ async def list_tools() -> list[Tool]:
                         "type": "boolean",
                         "description": "Use AI to generate section summaries (requires ANTHROPIC_API_KEY or GOOGLE_API_KEY). When false, uses heading text.",
                         "default": True
+                    },
+                    "use_embeddings": {
+                        "type": "boolean",
+                        "description": "Generate semantic embeddings for each section, enabling meaning-based search. Requires GOOGLE_API_KEY (Gemini) or OPENAI_API_KEY. Automatically activates semantic search on query.",
+                        "default": False
                     },
                     "extra_ignore_patterns": {
                         "type": "array",
@@ -61,7 +66,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="index_repo",
-            description="Index a GitHub repository's documentation. Fetches .md/.txt files, parses sections, and saves to local storage.",
+            description="Index a GitHub repository's documentation. Fetches .md/.txt files, parses sections, and saves to local storage. Set use_embeddings=true to enable semantic search.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -73,6 +78,11 @@ async def list_tools() -> list[Tool]:
                         "type": "boolean",
                         "description": "Use AI to generate section summaries.",
                         "default": True
+                    },
+                    "use_embeddings": {
+                        "type": "boolean",
+                        "description": "Generate semantic embeddings for each section, enabling meaning-based search. Requires GOOGLE_API_KEY (Gemini) or OPENAI_API_KEY.",
+                        "default": False
                     }
                 },
                 "required": ["url"]
@@ -134,7 +144,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="search_sections",
-            description="Search sections by weighted scoring across title, summary, tags, and content. Returns summaries only — use get_section for full content.",
+            description="Search sections by relevance. Uses semantic (embedding) search when the index was built with use_embeddings=true, otherwise uses weighted keyword scoring. Returns summaries only — use get_section for full content.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -245,6 +255,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = index_local(
                 path=arguments["path"],
                 use_ai_summaries=arguments.get("use_ai_summaries", True),
+                use_embeddings=arguments.get("use_embeddings", False),
                 storage_path=storage_path,
                 extra_ignore_patterns=arguments.get("extra_ignore_patterns"),
                 follow_symlinks=arguments.get("follow_symlinks", False),
@@ -253,6 +264,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = await index_repo(
                 url=arguments["url"],
                 use_ai_summaries=arguments.get("use_ai_summaries", True),
+                use_embeddings=arguments.get("use_embeddings", False),
                 storage_path=storage_path,
             )
         elif name == "list_repos":
