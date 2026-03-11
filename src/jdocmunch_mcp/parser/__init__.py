@@ -40,6 +40,7 @@ def preprocess_content(content: str, doc_path: str) -> str:
 
     Converts structured formats to Markdown so that parse_file() can use the
     Markdown parser uniformly:
+    - .mdx → clean Markdown via strip_mdx() (removes frontmatter, imports, JSX)
     - .ipynb / .html → Markdown via notebook/HTML converters
     - .xml / .svg / .xhtml → Markdown via XML converter
     - .jsonc → Markdown via JSON converter (JSONC comments stripped)
@@ -57,6 +58,8 @@ def preprocess_content(content: str, doc_path: str) -> str:
     """
     import os
     ext = os.path.splitext(doc_path)[1].lower()
+    if ext == ".mdx":
+        return strip_mdx(content)
     if ext == ".ipynb":
         return convert_notebook(content)
     if ext in (".html", ".htm"):
@@ -89,8 +92,7 @@ def parse_file(content: str, doc_path: str, repo: str) -> list:
     doc_type = ALL_EXTENSIONS.get(ext, "text")
 
     if doc_type == "markdown":
-        if ext == ".mdx":
-            content = strip_mdx(content)
+        # .mdx already stripped by preprocess_content(); parse directly
         sections = parse_markdown(content, doc_path, repo)
     elif doc_type == "rst":
         sections = parse_rst(content, doc_path, repo)
