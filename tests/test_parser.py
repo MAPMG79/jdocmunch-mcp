@@ -1079,3 +1079,112 @@ class TestXMLDispatch:
         preprocessed = preprocess_content(_INVALID_XML, "bad.xml")
         sections = parse_file(preprocessed, "bad.xml", "myrepo")
         assert sections == []
+
+
+# ── Godot (.tscn / .tres) ─────────────────────────────────────────────────────
+
+from jdocmunch_mcp.parser.godot_parser import convert_godot
+
+_TSCN_SCENE = """\
+[gd_scene load_steps=4 format=3 uid="uid://abc123"]
+
+[ext_resource type="Script" path="res://player.gd" id="1_abc"]
+[ext_resource type="Texture2D" path="res://player.png" id="2_def"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_xyz"]
+radius = 16.0
+height = 48.0
+
+[node name="Player" type="CharacterBody2D"]
+script = ExtResource("1_abc")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("2_def")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_xyz")
+"""
+
+_TRES_RESOURCE = """\
+[gd_resource type="MyData" load_steps=2 format=3 uid="uid://def456"]
+
+[ext_resource type="Script" path="res://my_data.gd" id="1_xyz"]
+
+[resource]
+my_string = "hello"
+my_int = 42
+"""
+
+_EMPTY_TSCN = ""
+
+
+class TestConvertGodot:
+    def test_tscn_returns_markdown(self):
+        md = convert_godot(_TSCN_SCENE, "Player.tscn")
+        assert md.startswith("# Player")
+
+    def test_tscn_file_metadata(self):
+        md = convert_godot(_TSCN_SCENE, "Player.tscn")
+        assert "## File Metadata" in md
+        assert "format" in md
+
+    def test_tscn_external_resources(self):
+        md = convert_godot(_TSCN_SCENE, "Player.tscn")
+        assert "## External Resources" in md
+        assert "player.gd" in md
+        assert "player.png" in md
+
+    def test_tscn_sub_resources(self):
+        md = convert_godot(_TSCN_SCENE, "Player.tscn")
+        assert "## Sub-Resources" in md
+        assert "CapsuleShape2D" in md
+
+    def test_tscn_scene_tree(self):
+        md = convert_godot(_TSCN_SCENE, "Player.tscn")
+        assert "## Scene Tree" in md
+        assert "Player" in md
+        assert "Sprite2D" in md
+        assert "CollisionShape2D" in md
+
+    def test_tscn_node_properties(self):
+        md = convert_godot(_TSCN_SCENE, "Player.tscn")
+        assert "radius" in md
+
+    def test_tres_resource_block(self):
+        md = convert_godot(_TRES_RESOURCE, "my_data.tres")
+        assert "## Resource Properties" in md
+        assert "my_string" in md
+        assert "my_int" in md
+
+    def test_tres_ext_resource(self):
+        md = convert_godot(_TRES_RESOURCE, "my_data.tres")
+        assert "my_data.gd" in md
+
+    def test_empty_returns_empty(self):
+        assert convert_godot(_EMPTY_TSCN, "empty.tscn") == ""
+
+    def test_unknown_content_returns_empty(self):
+        assert convert_godot("; just a comment", "notes.tscn") == ""
+
+
+class TestGodotDispatch:
+    def test_tscn_produces_sections(self):
+        preprocessed = preprocess_content(_TSCN_SCENE, "Player.tscn")
+        sections = parse_file(preprocessed, "Player.tscn", "mygame")
+        assert len(sections) > 0
+
+    def test_tscn_scene_tree_section_present(self):
+        preprocessed = preprocess_content(_TSCN_SCENE, "Player.tscn")
+        sections = parse_file(preprocessed, "Player.tscn", "mygame")
+        titles = [s.title for s in sections]
+        assert "Scene Tree" in titles
+
+    def test_tres_produces_sections(self):
+        preprocessed = preprocess_content(_TRES_RESOURCE, "my_data.tres")
+        sections = parse_file(preprocessed, "my_data.tres", "mygame")
+        assert len(sections) > 0
+
+    def test_tscn_extension_registered(self):
+        from jdocmunch_mcp.parser import ALL_EXTENSIONS
+        assert ".tscn" in ALL_EXTENSIONS
+        assert ".tres" in ALL_EXTENSIONS

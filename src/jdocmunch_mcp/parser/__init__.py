@@ -9,6 +9,7 @@ from .openapi_parser import convert_openapi, sniff_openapi
 from .json_parser import convert_json
 from .xml_parser import convert_xml
 from .text_parser import parse_text
+from .godot_parser import convert_godot
 from .hierarchy import wire_hierarchy
 
 
@@ -32,6 +33,8 @@ ALL_EXTENSIONS = {
     ".xml": "xml",
     ".svg": "xml",
     ".xhtml": "xml",
+    ".tscn": "godot",
+    ".tres": "godot",
 }
 
 
@@ -66,6 +69,8 @@ def preprocess_content(content: str, doc_path: str) -> str:
         return convert_html(content)
     if ext in (".xml", ".svg", ".xhtml"):
         return convert_xml(content, doc_path)
+    if ext in (".tscn", ".tres"):
+        return convert_godot(content, doc_path)
     if ext == ".jsonc":
         return convert_json(content, doc_path)
     if sniff_openapi(content, ext):
@@ -108,7 +113,7 @@ def parse_file(content: str, doc_path: str, repo: str) -> list:
             sections = parse_markdown(content, doc_path, repo)
         else:
             sections = []
-    elif doc_type in ("json", "xml"):
+    elif doc_type in ("json", "xml", "godot"):
         # content already preprocessed to markdown by preprocess_content()
         if content.lstrip().startswith("# "):
             sections = parse_markdown(content, doc_path, repo)
