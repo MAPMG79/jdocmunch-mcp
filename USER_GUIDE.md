@@ -139,6 +139,19 @@ search_sections: {
 }
 ```
 
+### Read a Section with Full Hierarchy Context
+
+```
+get_section_context: {
+  "repo": "owner/repo",
+  "section_id": "owner/repo::docs/api.md::authentication/oauth/token-refresh#4",
+  "max_tokens": 2000,
+  "include_children": true
+}
+```
+
+Returns the ancestor heading chain (for orientation), the section's full content, and summaries of immediate child sections — all in one call. Useful when a section alone is too thin to answer a question but a full file read is wasteful.
+
 ### Batch Retrieve Related Sections
 
 ```
@@ -161,7 +174,7 @@ get_section: {
 }
 ```
 
-`_meta.content_verified` will be `true` if the source matches the stored hash and `false` if it has drifted since indexing.
+`section.hash_verified` will be `true` if the cached file content matches the stored hash, `false` if the cache has been modified. This is **cache integrity verification** — it checks that the locally cached copy is intact, not that the upstream source is unchanged.
 
 ### Force Re-index
 
@@ -170,22 +183,29 @@ delete_index: { "repo": "owner/repo" }
 index_local:  { "path": "/path/to/docs" }
 ```
 
+Or use the `incremental: false` flag to force a full re-index without deleting:
+
+```
+index_repo: { "url": "owner/repo", "incremental": false }
+```
+
 ---
 
 ## Tool Reference
 
-| Tool                  | Purpose                              | Key Parameters                                    |
-| --------------------- | ------------------------------------ | ------------------------------------------------- |
-| `index_local`         | Index local documentation folder     | `path`, `use_ai_summaries`, `extra_ignore_patterns`, `follow_symlinks` |
-| `index_repo`          | Index GitHub repository docs         | `url`, `use_ai_summaries`                         |
-| `list_repos`          | List all indexed documentation sets  | —                                                 |
-| `get_toc`             | Flat section list in document order  | `repo`                                            |
-| `get_toc_tree`        | Nested section tree per document     | `repo`                                            |
-| `get_document_outline`| Section hierarchy for one document   | `repo`, `doc_path`                                |
-| `search_sections`     | Weighted search across sections      | `repo`, `query`, `doc_path`, `max_results`        |
-| `get_section`         | Full content of one section          | `repo`, `section_id`, `verify`                    |
-| `get_sections`        | Batch content retrieval              | `repo`, `section_ids`, `verify`                   |
-| `delete_index`        | Delete index and cache               | `repo`                                            |
+| Tool                    | Purpose                                          | Key Parameters                                                   |
+| ----------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `index_local`           | Index local documentation folder                 | `path`, `use_ai_summaries`, `extra_ignore_patterns`, `follow_symlinks`, `incremental` |
+| `index_repo`            | Index GitHub repository docs                     | `url`, `use_ai_summaries`, `incremental`                         |
+| `list_repos`            | List all indexed documentation sets              | —                                                                |
+| `get_toc`               | Flat section list in document order              | `repo`                                                           |
+| `get_toc_tree`          | Nested section tree per document                 | `repo`                                                           |
+| `get_document_outline`  | Section hierarchy for one document               | `repo`, `doc_path`                                               |
+| `search_sections`       | Weighted search across sections                  | `repo`, `query`, `doc_path`, `max_results`                       |
+| `get_section`           | Full content of one section                      | `repo`, `section_id`, `verify`                                   |
+| `get_sections`          | Batch content retrieval                          | `repo`, `section_ids`, `verify`                                  |
+| `get_section_context`   | Section + ancestor headings + child summaries    | `repo`, `section_id`, `max_tokens`, `include_children`           |
+| `delete_index`          | Delete index and cache                           | `repo`                                                           |
 
 ---
 
@@ -194,18 +214,19 @@ index_local:  { "path": "/path/to/docs" }
 Section IDs follow the format:
 
 ```
-{repo}::{doc_path}::{slug}#{level}
+{repo}::{doc_path}::{ancestor-chain/slug}#{level}
 ```
 
-Examples:
+The slug is prefixed with the ancestor heading chain, making IDs hierarchical and stable:
 
 ```
 owner/repo::README.md::installation#1
-owner/repo::docs/config.md::authentication-options#2
+owner/repo::docs/config.md::installation/prerequisites#3
+owner/repo::docs/config.md::usage/configuration/advanced-configuration#4
 local/myproject::guide.md::quick-start#1
 ```
 
-IDs are returned by `get_toc`, `get_toc_tree`, `get_document_outline`, and `search_sections`. Pass them to `get_section` or `get_sections` to retrieve content.
+IDs are returned by `get_toc`, `get_toc_tree`, `get_document_outline`, and `search_sections`. Pass them to `get_section`, `get_sections`, or `get_section_context` to retrieve content.
 
 For local folders, `repo` defaults to `local/{folder-name}` — use the bare folder name when calling retrieval tools:
 

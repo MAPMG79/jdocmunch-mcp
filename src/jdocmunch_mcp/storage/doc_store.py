@@ -12,11 +12,23 @@ from typing import Optional
 from ..parser.sections import Section
 from ..embeddings import embed_query, cosine_similarity
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2
+
+# Module-level LRU cache: {(str(index_path), mtime_ns): DocIndex}
+# Keyed by path + mtime so the entry auto-invalidates whenever the file changes.
+_INDEX_CACHE: dict = {}
 
 
 def _file_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _evict_index_cache(index_path: Path) -> None:
+    """Remove all cache entries for a given index path (any mtime)."""
+    path_str = str(index_path)
+    stale = [k for k in _INDEX_CACHE if k[0] == path_str]
+    for k in stale:
+        del _INDEX_CACHE[k]
 
 
 @dataclass
@@ -31,6 +43,7 @@ class DocIndex:
     sections: list         # Serialized Section dicts (without content by default)
     index_version: int = INDEX_VERSION
     file_hashes: dict = field(default_factory=dict)
+    head_sha: Optional[str] = None
 
     def __post_init__(self) -> None:
         # Build O(1) lookup dict once at load time
@@ -176,6 +189,7 @@ class DocStore:
         raw_files: dict,        # {doc_path: content}
         doc_types: dict,        # {".md": N}
         file_hashes: Optional[dict] = None,
+        head_sha: Optional[str] = None,
     ) -> "DocIndex":
         """Save index and raw files to storage atomically."""
         if file_hashes is None:
@@ -193,6 +207,7 @@ class DocStore:
             sections=[s.to_dict() for s in sections],
             index_version=INDEX_VERSION,
             file_hashes=file_hashes,
+            head_sha=head_sha,
         )
 
         index_path = self._index_path(owner, name)
@@ -201,6 +216,7 @@ class DocStore:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(self._index_to_dict(index), f, indent=2)
         tmp_path.replace(index_path)
+        _evict_index_cache(index_path)
 
         # Cache raw files for byte-range reads
         content_dir = self._content_dir(owner, name)
@@ -217,19 +233,26 @@ class DocStore:
         return index
 
     def load_index(self, owner: str, name: str) -> Optional[DocIndex]:
-        """Load index from storage."""
+        """Load index from storage, using an in-memory cache keyed by (path, mtime)."""
         index_path = self._index_path(owner, name)
         if not index_path.exists():
             return None
+
+        mtime_ns = index_path.stat().st_mtime_ns
+        cache_key = (str(index_path), mtime_ns)
+        cached = _INDEX_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
 
         with open(index_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         stored_version = data.get("index_version", 1)
-        if stored_version > INDEX_VERSION:
+        if stored_version != INDEX_VERSION:
+            # Version mismatch (older or newer): trigger full re-index.
             return None
 
-        return DocIndex(
+        index = DocIndex(
             repo=data["repo"],
             owner=data["owner"],
             name=data["name"],
@@ -239,7 +262,10 @@ class DocStore:
             sections=data["sections"],
             index_version=stored_version,
             file_hashes=data.get("file_hashes", {}),
+            head_sha=data.get("head_sha"),
         )
+        _INDEX_CACHE[cache_key] = index
+        return index
 
     def detect_changes(
         self,
@@ -280,6 +306,7 @@ class DocStore:
         new_sections: list,     # list[Section]
         raw_files: dict,        # {doc_path: content} for changed + new files only
         doc_types: dict,
+        head_sha: Optional[str] = None,
     ) -> Optional["DocIndex"]:
         """Incrementally update an existing index.
 
@@ -334,6 +361,7 @@ class DocStore:
             sections=all_section_dicts,
             index_version=INDEX_VERSION,
             file_hashes=file_hashes,
+            head_sha=head_sha,
         )
 
         # Save atomically
@@ -342,6 +370,7 @@ class DocStore:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(self._index_to_dict(updated), f, indent=2)
         tmp_path.replace(index_path)
+        _evict_index_cache(index_path)
 
         # Update cached raw files
         content_dir = self._content_dir(owner, name)
@@ -418,6 +447,7 @@ class DocStore:
 
         deleted = False
         if index_path.exists():
+            _evict_index_cache(index_path)
             index_path.unlink()
             deleted = True
         if content_dir.exists():
@@ -426,7 +456,7 @@ class DocStore:
         return deleted
 
     def _index_to_dict(self, index: DocIndex) -> dict:
-        return {
+        d = {
             "repo": index.repo,
             "owner": index.owner,
             "name": index.name,
@@ -437,6 +467,9 @@ class DocStore:
             "index_version": index.index_version,
             "file_hashes": index.file_hashes,
         }
+        if index.head_sha:
+            d["head_sha"] = index.head_sha
+        return d
 
     def _resolve_repo(self, repo: str) -> tuple:
         """Resolve a 'owner/name' or bare 'name' string.

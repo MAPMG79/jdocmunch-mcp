@@ -38,6 +38,27 @@ def _should_skip(path: str) -> bool:
     return False
 
 
+async def fetch_head_commit_sha(
+    owner: str, repo: str, token: Optional[str] = None, client: Optional[httpx.AsyncClient] = None
+) -> Optional[str]:
+    """Fetch the HEAD commit SHA cheaply (single lightweight request)."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/commits/HEAD"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    try:
+        if client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json().get("sha")
+        async with httpx.AsyncClient(timeout=15.0) as c:
+            response = await c.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json().get("sha")
+    except Exception:
+        return None
+
+
 async def fetch_repo_tree(
     owner: str, repo: str, token: Optional[str] = None, client: Optional[httpx.AsyncClient] = None
 ) -> list:
@@ -148,8 +169,32 @@ async def index_repo(
 
     warnings = []
 
+    import os as _os
+    repo_id = f"{owner}/{repo}"
+    store = DocStore(base_path=storage_path)
+
     try:
+        # --- SHA fast-path: skip all HTTP fetches if HEAD commit hasn't changed ---
+        if incremental:
+            existing = store.load_index(owner, repo)
+            if existing and existing.head_sha:
+                current_sha = await fetch_head_commit_sha(owner, repo, github_token)
+                if current_sha and current_sha == existing.head_sha:
+                    latency_ms = int((time.perf_counter() - t0) * 1000)
+                    return {
+                        "success": True,
+                        "message": "No changes detected (HEAD SHA unchanged)",
+                        "repo": f"{owner}/{repo}",
+                        "incremental": True,
+                        "head_sha": current_sha,
+                        "changed": 0, "new": 0, "deleted": 0,
+                        "_meta": {"latency_ms": latency_ms},
+                    }
+
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # Fetch HEAD SHA alongside tree (reuse connection)
+            head_sha = await fetch_head_commit_sha(owner, repo, github_token, client=client)
+
             try:
                 tree_entries = await fetch_repo_tree(owner, repo, github_token, client=client)
             except httpx.HTTPStatusError as e:
@@ -184,10 +229,6 @@ async def index_repo(
 
             tasks = [fetch_with_limit(p) for p in source_files]
             file_contents = await asyncio.gather(*tasks)
-
-        import os as _os
-        repo_id = f"{owner}/{repo}"
-        store = DocStore(base_path=storage_path)
 
         # Build current_files map (preprocessed content keyed by path)
         current_files: dict = {}
@@ -242,6 +283,7 @@ async def index_repo(
                 owner=owner, name=repo,
                 changed_files=changed, new_files=new, deleted_files=deleted,
                 new_sections=new_sections, raw_files=raw_subset, doc_types=doc_types,
+                head_sha=head_sha,
             )
 
             latency_ms = int((time.perf_counter() - t0) * 1000)
@@ -290,6 +332,7 @@ async def index_repo(
             sections=all_sections,
             raw_files=raw_files,
             doc_types=doc_types,
+            head_sha=head_sha,
         )
 
         latency_ms = int((time.perf_counter() - t0) * 1000)

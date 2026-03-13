@@ -20,6 +20,7 @@ from .tools.get_document_outline import get_document_outline
 from .tools.search_sections import search_sections
 from .tools.get_section import get_section
 from .tools.get_sections import get_sections
+from .tools.get_section_context import get_section_context
 from .tools.delete_index import delete_index
 
 
@@ -59,6 +60,11 @@ async def list_tools() -> list[Tool]:
                         "type": "boolean",
                         "description": "Whether to follow symlinks. Default false for security.",
                         "default": False
+                    },
+                    "incremental": {
+                        "type": "boolean",
+                        "description": "When true (default), only re-index files that changed since the last index. Set to false to force a full re-index.",
+                        "default": True
                     }
                 },
                 "required": ["path"]
@@ -83,6 +89,11 @@ async def list_tools() -> list[Tool]:
                         "type": "boolean",
                         "description": "Generate semantic embeddings for each section, enabling meaning-based search. Requires GOOGLE_API_KEY (Gemini) or OPENAI_API_KEY.",
                         "default": False
+                    },
+                    "incremental": {
+                        "type": "boolean",
+                        "description": "When true (default), skip all HTTP fetches if the HEAD commit SHA is unchanged; otherwise only re-index changed files. Set to false to force a full re-index.",
+                        "default": True
                     }
                 },
                 "required": ["url"]
@@ -217,6 +228,34 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_section_context",
+            description="Retrieve a section with its full hierarchy context: ancestor headings (root → parent) for orientation, the target section's content, and immediate child summaries. Prevents 'section too thin' without falling back to whole-file reads.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "section_id": {
+                        "type": "string",
+                        "description": "Target section ID from get_toc, search_sections, etc."
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "description": "Approximate token budget for the target section's content (bytes/4 estimate). Ancestors and child summaries are always included.",
+                        "default": 2000
+                    },
+                    "include_children": {
+                        "type": "boolean",
+                        "description": "Include immediate child section summaries (no content reads). Default true.",
+                        "default": True
+                    }
+                },
+                "required": ["repo", "section_id"]
+            }
+        ),
+        Tool(
             name="delete_index",
             description="Remove a repo index and its cached raw files.",
             inputSchema={
@@ -259,6 +298,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 storage_path=storage_path,
                 extra_ignore_patterns=arguments.get("extra_ignore_patterns"),
                 follow_symlinks=arguments.get("follow_symlinks", False),
+                incremental=arguments.get("incremental", True),
             )
         elif name == "index_repo":
             result = await index_repo(
@@ -266,6 +306,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 use_ai_summaries=arguments.get("use_ai_summaries", True),
                 use_embeddings=arguments.get("use_embeddings", False),
                 storage_path=storage_path,
+                incremental=arguments.get("incremental", True),
             )
         elif name == "list_repos":
             result = list_repos(storage_path=storage_path)
@@ -305,6 +346,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 repo=arguments["repo"],
                 section_ids=arguments["section_ids"],
                 verify=arguments.get("verify", False),
+                storage_path=storage_path,
+            )
+        elif name == "get_section_context":
+            result = get_section_context(
+                repo=arguments["repo"],
+                section_id=arguments["section_id"],
+                max_tokens=arguments.get("max_tokens", 2000),
+                include_children=arguments.get("include_children", True),
                 storage_path=storage_path,
             )
         elif name == "delete_index":

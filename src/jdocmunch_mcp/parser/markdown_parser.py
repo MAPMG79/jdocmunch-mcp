@@ -57,6 +57,7 @@ from .sections import (
     slugify,
     resolve_slug_collision,
     make_section_id,
+    make_hierarchical_slug,
     compute_content_hash,
     extract_references,
     extract_tags,
@@ -84,6 +85,7 @@ def parse_markdown(content: str, doc_path: str, repo: str) -> list:
     """
     lines = content.splitlines(keepends=True)
     used_slugs: dict = {}
+    slug_stack: list = []
     sections = []
 
     # State for the current open section
@@ -154,8 +156,7 @@ def parse_markdown(content: str, doc_path: str, repo: str) -> list:
 
                 current_title = heading_text
                 current_level = heading_level
-                slug = slugify(heading_text)
-                current_slug = resolve_slug_collision(slug, used_slugs)
+                current_slug = make_hierarchical_slug(heading_text, heading_level, slug_stack, used_slugs)
                 current_byte_start = prev_byte_start
                 current_lines = []
             else:
@@ -164,8 +165,7 @@ def parse_markdown(content: str, doc_path: str, repo: str) -> list:
 
                 current_title = heading_text
                 current_level = heading_level
-                slug = slugify(heading_text)
-                current_slug = resolve_slug_collision(slug, used_slugs)
+                current_slug = make_hierarchical_slug(heading_text, heading_level, slug_stack, used_slugs)
                 current_byte_start = byte_cursor
                 current_lines = [line]
         else:

@@ -19,6 +19,7 @@ from .sections import (
     slugify,
     resolve_slug_collision,
     make_section_id,
+    make_hierarchical_slug,
     compute_content_hash,
     extract_references,
     extract_tags,
@@ -59,6 +60,7 @@ def parse_rst(content: str, doc_path: str, repo: str) -> list:
     stem = Path(doc_path).stem
     lines = content.splitlines(keepends=True)
     used_slugs: dict = {}
+    slug_stack: list = []
     sections = []
 
     # Maps (char, has_overline) -> assigned level (1-indexed, in order of first appearance)
@@ -132,8 +134,7 @@ def parse_rst(content: str, doc_path: str, repo: str) -> list:
 
                 current_title = heading_text
                 current_level = level
-                slug = slugify(heading_text)
-                current_slug = resolve_slug_collision(slug, used_slugs)
+                current_slug = make_hierarchical_slug(heading_text, level, slug_stack, used_slugs)
                 current_byte_start = byte_offsets[i]
                 current_lines = [lines[i], lines[i + 1], lines[i + 2]]
 
@@ -152,8 +153,7 @@ def parse_rst(content: str, doc_path: str, repo: str) -> list:
 
                 current_title = heading_text
                 current_level = level
-                slug = slugify(heading_text)
-                current_slug = resolve_slug_collision(slug, used_slugs)
+                current_slug = make_hierarchical_slug(heading_text, level, slug_stack, used_slugs)
                 current_byte_start = byte_offsets[i]
                 current_lines = [lines[i], lines[i + 1]]
 

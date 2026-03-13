@@ -85,6 +85,21 @@ def get_total_saved(base_path: Optional[str] = None) -> int:
         return 0
 
 
+def count_tokens(text: str) -> int:
+    """Count tokens in text.
+
+    Uses ``tiktoken`` (cl100k_base) when installed for an accurate count.
+    Falls back to the bytes/4 heuristic when tiktoken is not available,
+    keeping it as a zero-cost optional dependency.
+    """
+    try:
+        import tiktoken
+        enc = tiktoken.get_encoding("cl100k_base")
+        return len(enc.encode(text))
+    except Exception:
+        return max(1, len(text.encode("utf-8")) // _BYTES_PER_TOKEN)
+
+
 def estimate_savings(raw_bytes: int, response_bytes: int) -> int:
     """Estimate tokens saved: (raw - response) / bytes_per_token."""
     return max(0, (raw_bytes - response_bytes) // _BYTES_PER_TOKEN)

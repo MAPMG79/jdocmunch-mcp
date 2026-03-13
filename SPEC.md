@@ -15,7 +15,7 @@
 
 ---
 
-## MCP Tools (10)
+## MCP Tools (11)
 
 ### Indexing Tools
 
@@ -26,9 +26,12 @@
   "path": "/path/to/docs",
   "use_ai_summaries": true,
   "extra_ignore_patterns": ["drafts/**"],
-  "follow_symlinks": false
+  "follow_symlinks": false,
+  "incremental": true
 }
 ```
+
+`incremental` (default `true`): only re-parse files whose content hash changed since the last index. Set to `false` to force a full re-index.
 
 Walks the local directory with full security controls: path traversal prevention, symlink escape protection, secret detection, binary filtering, `.gitignore` respect, and directory pruning. Parses `.md`, `.mdx`, `.markdown`, `.txt`, and `.rst` files.
 
@@ -37,11 +40,14 @@ Walks the local directory with full security controls: path traversal prevention
 ```json
 {
   "url": "owner/repo",
-  "use_ai_summaries": true
+  "use_ai_summaries": true,
+  "incremental": true
 }
 ```
 
 Fetches documentation files via the GitHub API, parses sections, and saves to local storage.
+
+`incremental` (default `true`): first checks the HEAD commit SHA — if it matches the stored SHA the call returns immediately without any file fetches. If the SHA differs, only changed files are re-parsed. Set to `false` to force a full re-index.
 
 #### `delete_index` — Delete index for a repository
 
@@ -123,7 +129,25 @@ Weighted scoring across title, summary, tags, and content. Returns summaries onl
 }
 ```
 
-Retrieves section source via byte-offset seeking (O(1)). Optional `verify` re-hashes the content and compares it to the stored `content_hash`. Response `_meta.content_verified` will be `true` if matched, `false` if drifted.
+Retrieves section source via byte-offset seeking (O(1)). Optional `verify` re-hashes the retrieved content and compares it to the stored `content_hash`. The response field `section.hash_verified` will be `true` if the cached file matches the stored hash, `false` if the cache has been modified since indexing. This is **cache integrity verification**, not live-source drift detection.
+
+#### `get_section_context` — Retrieve a section with its hierarchy context
+
+```json
+{
+  "repo": "owner/repo",
+  "section_id": "owner/repo::docs/install.md::installation/prerequisites#3",
+  "max_tokens": 2000,
+  "include_children": true
+}
+```
+
+Returns three components:
+- **`ancestors`**: list of `{id, title, level}` dicts from root down to the immediate parent — provides orientation without bulk content
+- **`section`**: the target section with full content (byte-range read, capped by `max_tokens`)
+- **`children`**: immediate child section summaries (no content reads), included when `include_children=true`
+
+Prevents "section too thin to answer" failures without falling back to whole-file reads.
 
 #### `get_sections` — Batch retrieve multiple sections
 
@@ -173,9 +197,10 @@ class DocIndex:
     indexed_at: str        # ISO timestamp
     doc_paths: list        # Sorted list of indexed document paths
     doc_types: dict        # {".md": 12, ".txt": 3}
-    sections: list         # Serialized Section dicts (without content)
-    index_version: int     # Schema version (current: 1)
-    file_hashes: dict      # {doc_path: SHA-256} for change detection
+    sections: list         # Serialized Section dicts (metadata only — no content field)
+    index_version: int     # Schema version (current: 2); mismatch triggers full re-index
+    file_hashes: dict      # {doc_path: SHA-256} for incremental change detection
+    head_sha: str          # HEAD commit SHA (GitHub repos); enables O(1) no-change detection
 ```
 
 ---
@@ -217,9 +242,9 @@ owner/repo::docs/config.md::authentication-options#2
 local/myproject::guide.md::quick-start#1
 ```
 
-**Slug:** heading text lowercased, non-alphanumeric sequences replaced with hyphens. Duplicate slugs within the same document receive `-2`, `-3` suffixes.
+**Slug:** heading text is lowercased and non-alphanumeric sequences replaced with hyphens, then **prefixed with the ancestor slug chain** to form a hierarchical path. For example, `### Prerequisites` under `## Installation` becomes `installation/prerequisites`. This makes IDs stable under sibling insertions: adding a new same-named heading in one branch of the document does not renumber IDs in another branch.
 
-Section IDs are returned by `get_toc`, `get_toc_tree`, `get_document_outline`, and `search_sections`. Pass them to `get_section` or `get_sections` to retrieve content.
+Section IDs are returned by `get_toc`, `get_toc_tree`, `get_document_outline`, and `search_sections`. Pass them to `get_section`, `get_sections`, or `get_section_context` to retrieve content.
 
 ---
 
@@ -282,10 +307,13 @@ All errors return:
 
 ## Environment Variables
 
-| Variable                     | Purpose                                                    | Required |
-| ---------------------------- | ---------------------------------------------------------- | -------- |
-| `GITHUB_TOKEN`               | GitHub API authentication (higher limits, private repos)   | No       |
-| `ANTHROPIC_API_KEY`          | AI summarization via Claude Haiku (takes priority)         | No       |
-| `GOOGLE_API_KEY`             | AI summarization via Gemini Flash (used if no Anthropic key) | No     |
-| `DOC_INDEX_PATH`             | Custom storage path (default: `~/.doc-index/`)             | No       |
-| `JDOCMUNCH_SHARE_SAVINGS`    | Set to `0` to disable anonymous token savings reporting    | No       |
+| Variable                          | Purpose                                                              | Required |
+| --------------------------------- | -------------------------------------------------------------------- | -------- |
+| `GITHUB_TOKEN`                    | GitHub API authentication (higher limits, private repos)             | No       |
+| `ANTHROPIC_API_KEY`               | AI summarization via Claude Haiku (takes priority)                   | No       |
+| `GOOGLE_API_KEY`                  | AI summarization via Gemini Flash; also Gemini embeddings            | No       |
+| `OPENAI_API_KEY`                  | OpenAI embeddings (text-embedding-3-small)                           | No       |
+| `JDOCMUNCH_EMBEDDING_PROVIDER`    | Force embedding provider: `gemini`, `openai`, `sentence-transformers`, or `none` | No |
+| `JDOCMUNCH_ST_MODEL`              | sentence-transformers model name (default: `all-MiniLM-L6-v2`)      | No       |
+| `DOC_INDEX_PATH`                  | Custom storage path (default: `~/.doc-index/`)                       | No       |
+| `JDOCMUNCH_SHARE_SAVINGS`         | Set to `0` to disable anonymous token savings reporting              | No       |

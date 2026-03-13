@@ -1,8 +1,15 @@
 """Embedding providers for semantic section search.
 
-Supports Gemini (text-embedding-004) and OpenAI (text-embedding-3-small).
-Auto-detects from GOOGLE_API_KEY / OPENAI_API_KEY env vars.
-Set JDOCMUNCH_EMBEDDING_PROVIDER=none to disable.
+Supports Gemini (text-embedding-004), OpenAI (text-embedding-3-small),
+and sentence-transformers (fully offline, no API key required).
+
+Auto-detection priority (first available wins):
+    1. JDOCMUNCH_EMBEDDING_PROVIDER env var (gemini/openai/sentence-transformers/none)
+    2. GOOGLE_API_KEY → Gemini
+    3. OPENAI_API_KEY → OpenAI
+    4. sentence-transformers installed → local offline model
+
+Set JDOCMUNCH_EMBEDDING_PROVIDER=none to disable all embedding.
 """
 
 import math
@@ -46,20 +53,33 @@ def cosine_similarity(a: list, b: list) -> float:
 # Provider detection
 # ---------------------------------------------------------------------------
 
+def _sentence_transformers_available() -> bool:
+    """Return True if sentence-transformers is importable."""
+    try:
+        import sentence_transformers  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def get_provider_name() -> Optional[str]:
-    """Return 'gemini', 'openai', or None based on env vars."""
+    """Return the active provider name, or None if embeddings are disabled."""
     explicit = os.environ.get("JDOCMUNCH_EMBEDDING_PROVIDER", "").lower().strip()
     if explicit == "gemini":
         return "gemini"
     if explicit == "openai":
         return "openai"
+    if explicit in ("sentence-transformers", "sentence_transformers", "local"):
+        return "sentence-transformers"
     if explicit == "none":
         return None
-    # Auto-detect: Gemini wins if both keys present (already a dep)
+    # Auto-detect: cloud providers first, then offline fallback
     if os.environ.get("GOOGLE_API_KEY"):
         return "gemini"
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
+    if _sentence_transformers_available():
+        return "sentence-transformers"
     return None
 
 
@@ -121,6 +141,36 @@ class _OpenAIProvider:
 
 
 # ---------------------------------------------------------------------------
+# sentence-transformers provider (fully offline)
+# ---------------------------------------------------------------------------
+
+class _SentenceTransformersProvider:
+    """Embed via sentence-transformers (all-MiniLM-L6-v2 by default, 384 dims).
+
+    Runs entirely offline — no API key required. Install with:
+        pip install sentence-transformers
+    Override the model with JDOCMUNCH_ST_MODEL env var.
+    """
+
+    DEFAULT_MODEL = "all-MiniLM-L6-v2"
+    BATCH_SIZE = 64
+
+    def __init__(self):
+        from sentence_transformers import SentenceTransformer
+        model_name = os.environ.get("JDOCMUNCH_ST_MODEL", self.DEFAULT_MODEL)
+        self._model = SentenceTransformer(model_name)
+
+    def embed_texts(self, texts: list, task_type: str = "retrieval_document") -> list:
+        # task_type is ignored — sentence-transformers handles asymmetric search
+        # via separate query/passage models when needed; for MiniLM it's symmetric.
+        try:
+            embeddings = self._model.encode(texts, batch_size=self.BATCH_SIZE, show_progress_bar=False)
+            return [emb.tolist() for emb in embeddings]
+        except Exception:
+            return [[] for _ in texts]
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -134,6 +184,11 @@ def _get_provider():
     if name == "openai":
         try:
             return _OpenAIProvider()
+        except Exception:
+            return None
+    if name == "sentence-transformers":
+        try:
+            return _SentenceTransformersProvider()
         except Exception:
             return None
     return None

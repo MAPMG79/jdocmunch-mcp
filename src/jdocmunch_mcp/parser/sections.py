@@ -87,6 +87,39 @@ def make_section_id(repo: str, doc_path: str, slug: str, level: int) -> str:
     return f"{repo}::{doc_path}::{slug}#{level}"
 
 
+def make_hierarchical_slug(
+    heading_text: str,
+    heading_level: int,
+    slug_stack: list,   # mutable list of (level: int, full_path_slug: str)
+    used_slugs: dict,   # mutable collision tracker
+) -> str:
+    """Compute a stable, hierarchical slug for a heading.
+
+    The slug is prefixed with the ancestor chain so that same-named headings
+    under different parents are automatically distinct, e.g.::
+
+        installation/prerequisites    (not just 'prerequisites')
+        usage/configuration/advanced  (not just 'advanced')
+
+    This prevents the collision-suffix counter from renumbering when a new
+    same-named heading is inserted earlier in the document.
+
+    Mutates ``slug_stack`` and ``used_slugs`` in place.
+    Returns the full hierarchical slug to pass to ``make_section_id``.
+    """
+    # Drop any ancestors at the same or deeper level
+    while slug_stack and slug_stack[-1][0] >= heading_level:
+        slug_stack.pop()
+
+    parent_path = slug_stack[-1][1] if slug_stack else ""
+    leaf = slugify(heading_text)
+    full_path = f"{parent_path}/{leaf}" if parent_path else leaf
+    full_path = resolve_slug_collision(full_path, used_slugs)
+
+    slug_stack.append((heading_level, full_path))
+    return full_path
+
+
 def resolve_slug_collision(slug: str, used_slugs: dict) -> str:
     """Return a unique slug, appending -2, -3, etc. on collision.
 

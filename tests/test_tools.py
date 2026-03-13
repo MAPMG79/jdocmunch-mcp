@@ -14,6 +14,7 @@ from jdocmunch_mcp.tools.get_document_outline import get_document_outline
 from jdocmunch_mcp.tools.search_sections import search_sections
 from jdocmunch_mcp.tools.get_section import get_section
 from jdocmunch_mcp.tools.get_sections import get_sections
+from jdocmunch_mcp.tools.get_section_context import get_section_context
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -289,3 +290,129 @@ class TestGetSections:
         )
         assert result["section_count"] == 1
         assert "error" in result["sections"][0]
+
+
+class TestGetSectionContext:
+    def _find_section_by_title(self, toc, title, doc_path=None):
+        """Return the first section whose title matches (case-insensitive)."""
+        title_lower = title.lower()
+        for s in toc["sections"]:
+            if s["title"].lower() == title_lower:
+                if doc_path is None or s.get("doc_path", "").endswith(doc_path):
+                    return s["id"]
+        return None
+
+    def test_returns_ancestors_and_section(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        toc = get_toc(repo=repo_id, storage_path=storage_path)
+
+        # "Prerequisites" is a level-3 section under Installation → Sample Documentation
+        prereq_id = self._find_section_by_title(toc, "Prerequisites", doc_path="sample.md")
+        assert prereq_id, "Prerequisites section not found in fixture"
+
+        result = get_section_context(
+            repo=repo_id,
+            section_id=prereq_id,
+            storage_path=storage_path,
+        )
+
+        assert "error" not in result
+        assert "section" in result
+        assert "ancestors" in result
+        assert result["section"]["id"] == prereq_id
+        assert isinstance(result["section"]["content"], str)
+        assert len(result["section"]["content"]) > 0
+        # Should have at least one ancestor (Installation or Sample Documentation)
+        assert len(result["ancestors"]) >= 1
+        ancestor_titles = [a["title"] for a in result["ancestors"]]
+        assert any("installation" in t.lower() or "sample" in t.lower() for t in ancestor_titles)
+
+    def test_ancestors_ordered_root_first(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        toc = get_toc(repo=repo_id, storage_path=storage_path)
+
+        # "Advanced Configuration" is level-4: Sample Doc > Usage > Configuration > Advanced Configuration
+        adv_id = self._find_section_by_title(toc, "Advanced Configuration", doc_path="sample.md")
+        assert adv_id, "Advanced Configuration section not found in fixture"
+
+        result = get_section_context(repo=repo_id, section_id=adv_id, storage_path=storage_path)
+        assert "error" not in result
+
+        ancestors = result["ancestors"]
+        assert len(ancestors) >= 2
+        # Ancestors should be ordered root-first (ascending levels)
+        levels = [a["level"] for a in ancestors]
+        assert levels == sorted(levels)
+
+    def test_children_included_by_default(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        toc = get_toc(repo=repo_id, storage_path=storage_path)
+
+        # "Installation" in sample.md has children: Prerequisites, Quick Start
+        install_id = self._find_section_by_title(toc, "Installation", doc_path="sample.md")
+        assert install_id
+
+        result = get_section_context(repo=repo_id, section_id=install_id, storage_path=storage_path)
+        assert "error" not in result
+        assert len(result["children"]) >= 2
+        child_titles = [c["title"] for c in result["children"]]
+        assert any("prerequisites" in t.lower() for t in child_titles)
+        assert any("quick start" in t.lower() for t in child_titles)
+
+    def test_include_children_false(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        toc = get_toc(repo=repo_id, storage_path=storage_path)
+
+        install_id = self._find_section_by_title(toc, "Installation", doc_path="sample.md")
+        assert install_id
+
+        result = get_section_context(
+            repo=repo_id, section_id=install_id,
+            include_children=False, storage_path=storage_path,
+        )
+        assert "error" not in result
+        assert result["children"] == []
+
+    def test_max_tokens_truncates_content(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        toc = get_toc(repo=repo_id, storage_path=storage_path)
+
+        any_id = toc["sections"][0]["id"]
+        result = get_section_context(
+            repo=repo_id, section_id=any_id,
+            max_tokens=1,  # 4 bytes — will truncate anything non-trivial
+            storage_path=storage_path,
+        )
+        assert "error" not in result
+        # Either truncated flag is set, or content is very short
+        sec = result["section"]
+        assert sec.get("content_truncated") is True or len(sec["content"].encode()) <= 4
+
+    def test_meta_fields_present(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        toc = get_toc(repo=repo_id, storage_path=storage_path)
+        any_id = toc["sections"][0]["id"]
+
+        result = get_section_context(repo=repo_id, section_id=any_id, storage_path=storage_path)
+        meta = result["_meta"]
+        assert "latency_ms" in meta
+        assert "ancestor_count" in meta
+        assert "child_count" in meta
+        assert "tokens_saved" in meta
+
+    def test_invalid_repo(self, tmp_path):
+        result = get_section_context(
+            repo="nonexistent/repo",
+            section_id="whatever",
+            storage_path=str(tmp_path),
+        )
+        assert "error" in result
+
+    def test_invalid_section_id(self, indexed_repo):
+        repo_id, storage_path = indexed_repo
+        result = get_section_context(
+            repo=repo_id,
+            section_id="nobody::nowhere::nothing#99",
+            storage_path=storage_path,
+        )
+        assert "error" in result

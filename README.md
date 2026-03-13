@@ -162,16 +162,19 @@ jDocMunch implements **[jMRI-Full](https://dev.to/jgravelle/your-ai-agent-is-dum
 ## Stable section IDs
 
 ```text
-{repo}::{doc_path}::{slug}#{level}
-````
+{repo}::{doc_path}::{ancestor-chain/slug}#{level}
+```
+
+The slug is prefixed with the ancestor heading chain, making IDs both readable and stable. A new heading inserted in one branch of a document never renumbers IDs in another branch.
 
 Examples:
 
 * `owner/repo::docs/install.md::installation#1`
-* `owner/repo::README.md::quick-start#2`
+* `owner/repo::docs/install.md::installation/prerequisites#3`
+* `owner/repo::README.md::usage/configuration/advanced-configuration#4`
 * `local/myproject::guide.md::configuration#2`
 
-IDs remain stable across re-indexing when the file path, heading text, and heading level do not change.
+IDs remain stable across re-indexing when the file path, heading text, heading level, and parent heading chain do not change.
 
 ---
 
@@ -289,18 +292,19 @@ get_section:          { "repo": "owner/repo", "section_id": "owner/repo::docs/co
 
 ## Tool surface
 
-| Tool                   | Purpose                                  |
-| ---------------------- | ---------------------------------------- |
-| `index_local`          | Index a local documentation folder       |
-| `index_repo`           | Index a GitHub repository’s docs         |
-| `list_repos`           | List indexed documentation sets          |
-| `get_toc`              | Flat section list in document order      |
-| `get_toc_tree`         | Nested section tree per document         |
-| `get_document_outline` | Section hierarchy for one document       |
-| `search_sections`      | Weighted search returning summaries only |
-| `get_section`          | Full content of one section              |
-| `get_sections`         | Batch content retrieval                  |
-| `delete_index`         | Remove a doc index                       |
+| Tool                    | Purpose                                               |
+| ----------------------- | ----------------------------------------------------- |
+| `index_local`           | Index a local documentation folder                    |
+| `index_repo`            | Index a GitHub repository’s docs                      |
+| `list_repos`            | List indexed documentation sets                       |
+| `get_toc`               | Flat section list in document order                   |
+| `get_toc_tree`          | Nested section tree per document                      |
+| `get_document_outline`  | Section hierarchy for one document                    |
+| `search_sections`       | Weighted search returning summaries only              |
+| `get_section`           | Full content of one section                           |
+| `get_sections`          | Batch content retrieval                               |
+| `get_section_context`   | Section + ancestor headings + child summaries         |
+| `delete_index`          | Remove a doc index                                    |
 
 Search and retrieval tools include a `_meta` envelope with timing, token savings, and cost avoided.
 
@@ -371,19 +375,22 @@ See `SECURITY.md` for details.
 * source code symbol indexing (use [jCodeMunch](https://github.com/jgravelle/jcodemunch-mcp) for that)
 * real-time file watching
 * cross-repository global search
-* semantic/vector similarity search as a standalone product goal
+* semantic/vector similarity search as a standalone product (semantic search is supported as an enhancement when embeddings are enabled via `use_embeddings=true`, but the core workflow is structure-first)
 
 ---
 
 ## Environment variables
 
-| Variable                  | Purpose                                                           | Required |
-| ------------------------- | ----------------------------------------------------------------- | -------- |
-| `GITHUB_TOKEN`            | GitHub API auth                                                   | No       |
-| `ANTHROPIC_API_KEY`       | Section summaries via Claude Haiku                                | No       |
-| `GOOGLE_API_KEY`          | Section summaries via Gemini Flash                                | No       |
-| `DOC_INDEX_PATH`          | Custom cache path                                                 | No       |
-| `JDOCMUNCH_SHARE_SAVINGS` | Set to `0` to disable anonymous community token savings reporting | No       |
+| Variable                          | Purpose                                                           | Required |
+| --------------------------------- | ----------------------------------------------------------------- | -------- |
+| `GITHUB_TOKEN`                    | GitHub API auth                                                   | No       |
+| `ANTHROPIC_API_KEY`               | Section summaries via Claude Haiku                                | No       |
+| `GOOGLE_API_KEY`                  | Section summaries via Gemini Flash; also Gemini embeddings        | No       |
+| `OPENAI_API_KEY`                  | OpenAI embeddings (text-embedding-3-small)                        | No       |
+| `JDOCMUNCH_EMBEDDING_PROVIDER`    | Force provider: `gemini`, `openai`, `sentence-transformers`, `none` | No     |
+| `JDOCMUNCH_ST_MODEL`              | sentence-transformers model (default: `all-MiniLM-L6-v2`)        | No       |
+| `DOC_INDEX_PATH`                  | Custom cache path                                                 | No       |
+| `JDOCMUNCH_SHARE_SAVINGS`         | Set to `0` to disable anonymous community token savings reporting | No       |
 
 ---
 
