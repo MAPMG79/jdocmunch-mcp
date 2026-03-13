@@ -32,7 +32,6 @@ class Section:
             "repo": self.repo,
             "doc_path": self.doc_path,
             "title": self.title,
-            "content": self.content,
             "level": self.level,
             "parent_id": self.parent_id,
             "children": self.children,

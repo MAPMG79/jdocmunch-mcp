@@ -143,7 +143,7 @@ jDocMunch implements **[jMRI-Full](https://dev.to/jgravelle/your-ai-agent-is-dum
    Traversal protection, secret exclusion, binary detection
 
 3. **Parsing**
-   Heading-based section splitting (`#`, setext, and MDX-aware preprocessing)
+   Format-aware section splitting: heading-based (Markdown/MDX/HTML/RST/AsciiDoc), structure-based (OpenAPI tags, JSON keys, XML elements), or cell-based (Jupyter)
 
 4. **Hierarchy wiring**
    Parent/child relationships established
@@ -323,12 +323,18 @@ Example:
 
 ## Supported formats
 
-| Format     | Extensions         | Notes                                                           |
-| ---------- | ------------------ | --------------------------------------------------------------- |
-| Markdown   | `.md`, `.markdown` | ATX (`# Heading`) and setext headings                           |
-| MDX        | `.mdx`             | JSX tags, frontmatter, import/export stripped before parsing    |
-| Plain text | `.txt`             | Paragraph-block section splitting                               |
-| RST        | `.rst`             | Treated as plain text for now; richer heading detection planned |
+| Format             | Extensions                          | Notes                                                                          |
+| ------------------ | ----------------------------------- | ------------------------------------------------------------------------------ |
+| Markdown           | `.md`, `.markdown`                  | ATX (`# Heading`) and setext headings                                          |
+| MDX                | `.mdx`                              | JSX tags, frontmatter, import/export stripped before parsing                   |
+| Plain text         | `.txt`                              | Paragraph-block section splitting                                              |
+| reStructuredText   | `.rst`                              | Adornment-based heading detection                                              |
+| AsciiDoc           | `.adoc`                             | `=` and `==` heading hierarchy                                                 |
+| Jupyter Notebook   | `.ipynb`                            | Markdown cells used as sections; code cells attached as content                |
+| HTML               | `.html`                             | `<h1>`–`<h6>` headings; boilerplate stripped                                  |
+| OpenAPI / Swagger  | `.yaml`, `.yml`, `.json`, `.jsonc`  | OpenAPI 3.x and Swagger 2.x; operations grouped by tag as sections             |
+| JSON / JSONC       | `.json`, `.jsonc`                   | Top-level keys as sections; JSONC comments stripped before parsing             |
+| XML / SVG / XHTML  | `.xml`, `.svg`, `.xhtml`            | Element hierarchy used for section structure                                   |
 
 See `ARCHITECTURE.md` for parser details.
 
