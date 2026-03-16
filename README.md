@@ -32,19 +32,19 @@ Index once. Query cheaply forever.
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/jdocmunch-mcp)](https://pypi.org/project/jdocmunch-mcp/)
 
 > ## Commercial licenses
-> jCodeMunch-MCP is **free for non-commercial use**.  Tip jar: (https://gravelle.gumroad.com/coffee)
-> 
+> jDocMunch-MCP is **free for non-commercial use**.
+>
 > **Commercial use requires a paid license.**
 >
-> **jCodeMunch-only licenses**
-> - [Builder](https://gravelle.gumroad.com/l/jCodeMunchMCP_builder) — 1 developer
-> - [Studio](https://gravelle.gumroad.com/l/jCodeMunchMCP_studio) — up to 5 developers
-> - [Platform](https://gravelle.gumroad.com/l/jCodeMunchMCP_platform) — org-wide internal deployment
+> **jDocMunch-only licenses**
+> - [Builder — $29](https://j.gravelle.us/jCodeMunch/descriptions.php#builder) — 1 developer
+> - [Studio — $99](https://j.gravelle.us/jCodeMunch/descriptions.php#studio) — up to 5 developers
+> - [Platform — $499](https://j.gravelle.us/jCodeMunch/descriptions.php#platform) — org-wide internal deployment
 >
 > **Want both code and docs retrieval?**
-> - [Munch Duo Builder Bundle](https://gravelle.gumroad.com/l/MunchDuoBuilderBundle)
-> - [Munch Duo Studio Bundle](https://gravelle.gumroad.com/l/MunchDuoStudioBundle)
-> - [Munch Duo Platform Bundle](https://gravelle.gumroad.com/l/MunchDuoPlatformBundle)
+> - [Munch Duo Builder Bundle — $89](https://j.gravelle.us/jCodeMunch/descriptions.php#builder)
+> - [Munch Duo Studio Bundle — $399](https://j.gravelle.us/jCodeMunch/descriptions.php#studio)
+> - [Munch Duo Platform Bundle — $2,249](https://j.gravelle.us/jCodeMunch/descriptions.php#platform)
 
 **Stop dumping documentation files into context windows. Start navigating docs structurally.**
 
