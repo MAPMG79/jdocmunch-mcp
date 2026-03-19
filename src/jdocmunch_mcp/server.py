@@ -389,6 +389,9 @@ async def run_server():
 
 def main(argv: Optional[list] = None):
     """Main entry point."""
+    from .security import verify_package_integrity
+    verify_package_integrity()
+
     parser = argparse.ArgumentParser(
         prog="jdocmunch-mcp",
         description="Run the jDocMunch MCP stdio server.",
