@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jgravelle/jdocmunch-mcp",
+  "title": "jDocmunch MCP",
+  "description": "Section-level documentation search and indexing. Navigates .md, .rst, .adoc, .ipynb, .html, .yaml/.json (OpenAPI) by section instead of brute-force file reading.",
+  "version": "1.4.2",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "jdocmunch-mcp",
+      "version": "1.4.2",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/jgravelle/jdocmunch-mcp",
+    "source": "github"
+  }
+}
