@@ -110,6 +110,14 @@ class DocIndex:
             for _, sec in scored[:max_results]
         ]
 
+    @staticmethod
+    def _word_matches(word: str, text: str) -> bool:
+        """True if word is an exact match or prefix of any word in text."""
+        if word in text:
+            return True
+        # prefix match: "authenticat" hits "authentication"
+        return any(t.startswith(word) for t in text.split() if len(word) >= 3)
+
     def _score_section(self, sec: dict, query_lower: str, query_words: set) -> int:
         score = 0
 
@@ -119,14 +127,14 @@ class DocIndex:
         elif query_lower in title_lower:
             score += 10
         for word in query_words:
-            if word in title_lower:
+            if self._word_matches(word, title_lower):
                 score += 5
 
         summary_lower = sec.get("summary", "").lower()
         if query_lower in summary_lower:
             score += 8
         for word in query_words:
-            if word in summary_lower:
+            if self._word_matches(word, summary_lower):
                 score += 2
 
         tags = sec.get("tags", [])
@@ -135,7 +143,7 @@ class DocIndex:
                 score += 3
 
         content_lower = sec.get("content", "").lower()
-        word_hits = sum(1 for w in query_words if w in content_lower)
+        word_hits = sum(1 for w in query_words if self._word_matches(w, content_lower))
         score += min(word_hits, 5)
 
         return score

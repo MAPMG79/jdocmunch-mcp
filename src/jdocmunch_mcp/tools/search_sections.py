@@ -47,15 +47,21 @@ def search_sections(
     ca = cost_avoided(tokens_saved, total)
 
     latency_ms = int((time.perf_counter() - t0) * 1000)
+    used_semantic = index._has_embeddings()
+    meta = {
+        "latency_ms": latency_ms,
+        "sections_returned": len(results),
+        "tokens_saved": tokens_saved,
+        "search_mode": "semantic" if used_semantic else "lexical",
+        **ca,
+    }
+    if not used_semantic:
+        meta["tip"] = "Re-index with use_embeddings=True for semantic search (better recall on paraphrased queries)"
+
     return {
         "repo": f"{owner}/{name}",
         "query": query,
         "results": results,
         "result_count": len(results),
-        "_meta": {
-            "latency_ms": latency_ms,
-            "sections_returned": len(results),
-            "tokens_saved": tokens_saved,
-            **ca,
-        },
+        "_meta": meta,
     }
