@@ -19,7 +19,7 @@ class TestListTools:
         tools = await list_tools()
         names = {t.name for t in tools}
         expected = {
-            "index_local", "index_repo", "list_repos",
+            "index_local", "doc_index_repo", "doc_list_repos",
             "get_toc", "get_toc_tree", "get_document_outline",
             "search_sections", "get_section", "get_sections", "get_section_context", "delete_index",
         }
@@ -37,7 +37,7 @@ class TestListTools:
         tools = await list_tools()
         # Tools that need 'repo' should have it in required
         for tool in tools:
-            if tool.name not in ("index_local", "index_repo", "list_repos"):
+            if tool.name not in ("index_local", "doc_index_repo", "doc_list_repos"):
                 assert "required" in tool.inputSchema
                 assert "repo" in tool.inputSchema["required"]
 
@@ -53,7 +53,7 @@ class TestCallTool:
     @pytest.mark.asyncio
     async def test_list_repos_no_storage(self, tmp_path, monkeypatch):
         monkeypatch.setenv("DOC_INDEX_PATH", str(tmp_path))
-        result = await call_tool("list_repos", {})
+        result = await call_tool("doc_list_repos", {})
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert "repos" in data

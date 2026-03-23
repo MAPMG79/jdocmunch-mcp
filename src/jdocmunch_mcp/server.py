@@ -61,6 +61,10 @@ async def list_tools() -> list[Tool]:
                         "description": "Whether to follow symlinks. Default false for security.",
                         "default": False
                     },
+                    "name": {
+                        "type": "string",
+                        "description": "Optional repo identifier override. Use this when two folders share the same name (e.g. both named 'docs'). If omitted, the folder name is used. Example: 'requests-docs', 'flask-docs'."
+                    },
                     "incremental": {
                         "type": "boolean",
                         "description": "When true (default), only re-index files that changed since the last index. Set to false to force a full re-index.",
@@ -71,7 +75,7 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="index_repo",
+            name="doc_index_repo",
             description="Index a GitHub repository's documentation. Fetches .md/.txt files, parses sections, and saves to local storage. Set use_embeddings=true to enable semantic search.",
             inputSchema={
                 "type": "object",
@@ -100,7 +104,7 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
-            name="list_repos",
+            name="doc_list_repos",
             description="List all indexed documentation repositories.",
             inputSchema={
                 "type": "object",
@@ -293,6 +297,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         if name == "index_local":
             result = index_local(
                 path=arguments["path"],
+                name=arguments.get("name"),
                 use_ai_summaries=arguments.get("use_ai_summaries", True),
                 use_embeddings=arguments.get("use_embeddings", False),
                 storage_path=storage_path,
@@ -300,7 +305,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 follow_symlinks=arguments.get("follow_symlinks", False),
                 incremental=arguments.get("incremental", True),
             )
-        elif name == "index_repo":
+        elif name in ("doc_index_repo", "index_repo"):  # index_repo kept for backward compat
             result = await index_repo(
                 url=arguments["url"],
                 use_ai_summaries=arguments.get("use_ai_summaries", True),
@@ -308,7 +313,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 storage_path=storage_path,
                 incremental=arguments.get("incremental", True),
             )
-        elif name == "list_repos":
+        elif name in ("doc_list_repos", "list_repos"):  # list_repos kept for backward compat
             result = list_repos(storage_path=storage_path)
         elif name == "get_toc":
             result = get_toc(

@@ -124,6 +124,7 @@ def discover_doc_files(
 
 def index_local(
     path: str,
+    name: Optional[str] = None,
     use_ai_summaries: bool = True,
     use_embeddings: bool = False,
     storage_path: Optional[str] = None,
@@ -135,6 +136,9 @@ def index_local(
 
     Args:
         path: Path to local folder.
+        name: Optional repo identifier override. Use when two folders share the same
+              name (e.g. two libraries both with a 'docs' folder). Defaults to the
+              folder name.
         use_ai_summaries: Whether to use AI for section summaries.
         storage_path: Custom storage path (default: ~/.doc-index/).
         extra_ignore_patterns: Additional gitignore-style patterns to exclude.
@@ -165,7 +169,7 @@ def index_local(
         if not doc_files:
             return {"success": False, "error": "No documentation files found"}
 
-        repo_name = folder_path.name
+        repo_name = name if name else folder_path.name
         owner = "local"
         repo_id = f"{owner}/{repo_name}"
         store = DocStore(base_path=storage_path)
