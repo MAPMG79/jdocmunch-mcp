@@ -217,3 +217,24 @@ class TestBackwardCompatAliases:
             _GeminiSummarizer,
         )
         assert GeminiBatchSummarizer is _GeminiSummarizer
+
+
+class TestOpenAICompatSummarizer:
+    def test_call_api_returns_empty_string_for_none_content(self):
+        from types import SimpleNamespace
+
+        from jdocmunch_mcp.summarizer.batch_summarize import _OpenAICompatSummarizer
+
+        summarizer = _OpenAICompatSummarizer.__new__(_OpenAICompatSummarizer)
+        summarizer.model = "minimax-m2.7"
+        summarizer._client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **_: SimpleNamespace(
+                        choices=[SimpleNamespace(message=SimpleNamespace(content=None))]
+                    )
+                )
+            )
+        )
+
+        assert summarizer._call_api("prompt") == ""

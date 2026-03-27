@@ -1,5 +1,6 @@
 """Three-tier summarization for doc sections: heading > AI > title fallback."""
 
+import logging
 import os
 import re
 from typing import Optional
@@ -7,6 +8,7 @@ from typing import Optional
 from ..parser.sections import Section
 
 _SUMMARY_LINE_RE = re.compile(r"^(\d+)\.\s+(.+)")
+logger = logging.getLogger(__name__)
 
 
 def _build_prompt(sections: list) -> str:
@@ -148,7 +150,20 @@ class _OpenAICompatSummarizer(_BaseSummarizer):
             temperature=0.0,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        if isinstance(content, str):
+            return content
+        if content:
+            logger.warning(
+                "OpenAI-compatible summarizer returned non-string content; coercing to string",
+                extra={"model": self.model, "content_type": type(content).__name__},
+            )
+            return str(content)
+        logger.warning(
+            "OpenAI-compatible summarizer returned empty content; falling back to empty response",
+            extra={"model": self.model},
+        )
+        return ""
 
 
 # ---------------------------------------------------------------------------
