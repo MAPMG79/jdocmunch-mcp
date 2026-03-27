@@ -221,7 +221,11 @@ def _create_summarizer() -> Optional[_BaseSummarizer]:
     if name and name in _PROVIDERS:
         try:
             return _PROVIDERS[name]()
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to initialize summarizer provider; AI summaries disabled for this run",
+                extra={"provider": name, "error": type(exc).__name__, "detail": str(exc)},
+            )
             return None
     return None
 

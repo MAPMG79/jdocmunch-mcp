@@ -66,6 +66,25 @@ Config file location:
 }
 ```
 
+For Anthropic or Gemini, `uvx jdocmunch-mcp` is sufficient once the matching API
+key is set. For OpenAI-compatible providers such as OpenAI, MiniMax, or GLM-5,
+start the server with the optional `openai` dependency:
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["--with", "openai", "jdocmunch-mcp"],
+      "env": {
+        "MINIMAX_API_KEY": "mx-...",
+        "JDOCMUNCH_SUMMARIZER_PROVIDER": "minimax"
+      }
+    }
+  }
+}
+```
+
 After saving the config, **restart Claude Desktop / Claude Code** for the server to appear.
 
 ### VS Code
