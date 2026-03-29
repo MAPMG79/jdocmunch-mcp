@@ -20,3 +20,4 @@ Documentation section indexing for the jMunch suite. Companion to jcodemunch-mcp
 - `pyyaml>=6.0` required (hard dep)
 - Semantic search: pass `use_embeddings=True` to index_local/index_repo; search_sections auto-selects cosine-similarity if embeddings present
 - Embedding providers: GOOGLE_API_KEY (Gemini, text-embedding-004) or OPENAI_API_KEY (text-embedding-3-small); override with JDOCMUNCH_EMBEDDING_PROVIDER env var
+- Summarizer providers: ANTHROPIC_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY, MINIMAX_API_KEY, ZHIPUAI_API_KEY; override with JDOCMUNCH_SUMMARIZER_PROVIDER env var (values: anthropic, gemini, openai, minimax, glm, none)

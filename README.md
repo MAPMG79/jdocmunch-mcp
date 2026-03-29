@@ -253,6 +253,25 @@ Config file location:
 }
 ```
 
+For Anthropic or Gemini, the base `uvx jdocmunch-mcp` command is enough once the
+corresponding API key is present. For OpenAI-compatible providers such as OpenAI,
+MiniMax, or GLM-5, include the optional dependency in the launcher command:
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["--with", "openai", "jdocmunch-mcp"],
+      "env": {
+        "MINIMAX_API_KEY": "mx-...",
+        "JDOCMUNCH_SUMMARIZER_PROVIDER": "minimax"
+      }
+    }
+  }
+}
+```
+
 After saving the config, **restart Claude Desktop / Claude Code**.
 
 ---
@@ -484,4 +503,3 @@ Until a commercial license is obtained, commercial use is not permitted.
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
 
 IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
