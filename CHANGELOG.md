@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.5] — 2026-03-31
+
+### Housekeeping
+
+- Added `LICENSE` file (dual-use: free for non-commercial, paid for commercial)
+
 ## [1.4.0] — 2026-03-13
 
 ### New features
