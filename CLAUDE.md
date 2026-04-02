@@ -1,6 +1,6 @@
 # jdocmunch-mcp
 
-**Version:** 1.4.5 | **Tests:** `pytest tests/ -q`
+**Version:** 1.5.0 | **Tests:** `pytest tests/ -q` (298 total)
 
 ## Purpose
 Documentation section indexing for the jMunch suite. Companion to jcodemunch-mcp (which owns code symbols). Do NOT add code/docstring parsing here.
@@ -11,7 +11,7 @@ Documentation section indexing for the jMunch suite. Companion to jcodemunch-mcp
 ## Key Modules
 - `storage/doc_store.py` — DocIndex, DocStore, detect_changes, incremental_save
 - `parser/` — one file per format (markdown, rst, asciidoc, notebook, html, text, openapi, json, xml)
-- `tools/` — index_local, index_repo, get_toc, get_toc_tree, search_sections, get_section, get_sections, list_repos, delete_index
+- `tools/` — index_local, index_repo, get_toc, get_toc_tree, search_sections, get_section, get_sections, list_repos, delete_index, get_broken_links, get_doc_coverage
 - `embeddings/` — provider.py (Gemini + OpenAI), cosine_similarity, embed_sections, embed_query
 
 ## Architecture

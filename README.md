@@ -326,6 +326,8 @@ get_section:          { "repo": "owner/repo", "section_id": "owner/repo::docs/co
 | `get_sections`          | Batch content retrieval                               |
 | `get_section_context`   | Section + ancestor headings + child summaries         |
 | `delete_index`          | Remove a doc index                                    |
+| `get_broken_links`      | Detect internal links/anchors that no longer resolve  |
+| `get_doc_coverage`      | Which jcodemunch symbols have matching doc sections   |
 
 Search and retrieval tools include a `_meta` envelope with timing, token savings, and cost avoided.
 

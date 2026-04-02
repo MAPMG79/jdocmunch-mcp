@@ -22,6 +22,8 @@ from .tools.get_section import get_section
 from .tools.get_sections import get_sections
 from .tools.get_section_context import get_section_context
 from .tools.delete_index import delete_index
+from .tools.get_broken_links import get_broken_links
+from .tools.get_doc_coverage import get_doc_coverage
 
 
 server = Server("jdocmunch-mcp")
@@ -273,6 +275,51 @@ async def list_tools() -> list[Tool]:
                 "required": ["repo"]
             }
         ),
+        Tool(
+            name="get_broken_links",
+            description=(
+                "Scan indexed doc files for internal cross-references that no longer resolve. "
+                "Checks markdown links, RST :ref:/:doc: directives, and anchor-only links (#heading). "
+                "External links (http/https) are skipped. "
+                "Output: list of {source_file, source_section, target, reason} where reason is "
+                "'file_not_found', 'section_not_found', or 'anchor_not_found'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="get_doc_coverage",
+            description=(
+                "Check which jcodemunch symbols have matching documentation in this doc index. "
+                "Given a list of jcodemunch symbol IDs, reports which symbols are mentioned in "
+                "section titles (documented) vs absent (undocumented). "
+                "Bridges jcodemunch <-> jdocmunch. symbol_ids capped at 200. "
+                "Output: {documented, undocumented, coverage_pct}."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Doc repo identifier (owner/repo or just repo name)"
+                    },
+                    "symbol_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of jcodemunch symbol IDs to check coverage for"
+                    }
+                },
+                "required": ["repo", "symbol_ids"]
+            }
+        ),
     ]
 
 
@@ -364,6 +411,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         elif name == "delete_index":
             result = delete_index(
                 repo=arguments["repo"],
+                storage_path=storage_path,
+            )
+        elif name == "get_broken_links":
+            result = get_broken_links(
+                repo=arguments["repo"],
+                storage_path=storage_path,
+            )
+        elif name == "get_doc_coverage":
+            result = get_doc_coverage(
+                repo=arguments["repo"],
+                symbol_ids=arguments["symbol_ids"],
                 storage_path=storage_path,
             )
         else:
