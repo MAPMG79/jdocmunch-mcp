@@ -131,6 +131,7 @@ def index_local(
     extra_ignore_patterns: Optional[list] = None,
     follow_symlinks: bool = False,
     incremental: bool = True,
+    max_files: int = 500,
 ) -> dict:
     """Index a local folder containing documentation files.
 
@@ -144,6 +145,7 @@ def index_local(
         extra_ignore_patterns: Additional gitignore-style patterns to exclude.
         follow_symlinks: Whether to follow symlinks.
         incremental: When True and an existing index exists, only re-index changed files.
+        max_files: Maximum number of doc files to index. Default 500.
 
     Returns:
         Dict with indexing results.
@@ -161,6 +163,7 @@ def index_local(
     try:
         doc_files, discover_warnings = discover_doc_files(
             folder_path,
+            max_files=max_files,
             extra_ignore_patterns=extra_ignore_patterns,
             follow_symlinks=follow_symlinks,
         )
@@ -298,8 +301,8 @@ def index_local(
 
         if warnings:
             result["warnings"] = warnings
-        if len(doc_files) >= 500:
-            result["note"] = "Folder has many files; indexed first 500"
+        if len(doc_files) >= max_files:
+            result["note"] = f"Folder has many files; indexed first {max_files}"
 
         return result
 

@@ -63,6 +63,11 @@ async def list_tools() -> list[Tool]:
                         "description": "Whether to follow symlinks. Default false for security.",
                         "default": False
                     },
+                    "max_files": {
+                        "type": "integer",
+                        "description": "Maximum number of doc files to index. Raise this for large doc trees. Default 500.",
+                        "default": 500
+                    },
                     "name": {
                         "type": "string",
                         "description": "Optional repo identifier override. Use this when two folders share the same name (e.g. both named 'docs'). If omitted, the folder name is used. Example: 'requests-docs', 'flask-docs'."
@@ -351,6 +356,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 extra_ignore_patterns=arguments.get("extra_ignore_patterns"),
                 follow_symlinks=arguments.get("follow_symlinks", False),
                 incremental=arguments.get("incremental", True),
+                max_files=arguments.get("max_files", 500),
             )
         elif name in ("doc_index_repo", "index_repo"):  # index_repo kept for backward compat
             result = await index_repo(
