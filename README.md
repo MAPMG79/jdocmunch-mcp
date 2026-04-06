@@ -294,6 +294,93 @@ After saving the config, **restart Claude Desktop / Claude Code**.
 }
 ```
 
+## OpenClaw
+
+**Option A — CLI (one command):**
+
+```bash
+openclaw mcp set jdocmunch '{"command":"uvx","args":["jdocmunch-mcp"]}'
+```
+
+**Option B — Edit config directly:**
+
+Add the entry to `~/.openclaw/openclaw.json` under `mcpServers`:
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"],
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+With optional AI summaries:
+
+```json
+{
+  "mcpServers": {
+    "jdocmunch": {
+      "command": "uvx",
+      "args": ["jdocmunch-mcp"],
+      "transport": "stdio",
+      "env": {
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Restart the gateway and verify:
+
+```bash
+openclaw gateway restart
+openclaw mcp list
+```
+
+**Per-agent routing (optional):**
+
+```json
+{
+  "agents": {
+    "researcher": {
+      "mcpServers": ["jdocmunch", "brave-search", "fetch"]
+    }
+  }
+}
+```
+
+### Tell your OpenClaw agent to use it
+
+Without explicit instructions, your agent will ignore jDocMunch even though it's connected. Create a system prompt file (e.g. `~/.openclaw/agents/researcher.md`) with:
+
+```markdown
+## Documentation Policy
+Always use jDocMunch-MCP tools for documentation exploration.
+- Before reading a doc file: use search_sections or get_toc
+- To retrieve specific content: use get_section with the section ID
+- To index local docs: use index_local with the docs folder path
+- Never open documentation files directly — navigate by section.
+```
+
+Point your agent at it in `~/.openclaw/openclaw.json`:
+
+```json
+{
+  "agents": {
+    "named": {
+      "researcher": {
+        "systemPromptFile": "~/.openclaw/agents/researcher.md"
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## Usage examples
@@ -345,6 +432,10 @@ Example:
 ```
 
 `total_tokens_saved` and `total_cost_avoided` accumulate across tool calls and persist to `~/.doc-index/_savings.json`.
+
+### Check your token savings
+
+Every jDocMunch tool response includes a `_meta` block with `tokens_saved` (this call) and `total_tokens_saved` (lifetime). To check your cumulative savings, ask your agent to call any jDocMunch tool (e.g. `get_toc` or `search_sections`) and look at the `_meta` envelope. Lifetime stats persist in `~/.doc-index/_savings.json` across sessions.
 
 ---
 
