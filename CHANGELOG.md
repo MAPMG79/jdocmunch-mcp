@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.2] — 2026-04-06
+
+### Added
+- **`contrib/build-deb.sh`** — Community-contributed Debian/Ubuntu packaging script for Proxmox and other Linux deployments. Includes venv isolation, systemd unit, and streamable HTTP wrapper. Contributed by @Tikilou. Closes #7.
+
 ## [1.5.0] — 2026-04-01
 
 ### New tools
