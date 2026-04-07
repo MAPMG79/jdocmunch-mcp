@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.3] — 2026-04-07
+
+### Changed
+- Switch MCP tool responses from pretty-printed JSON to compact JSON — saves 30-40% tokens per response (jcodemunch-mcp#219)
+
 ## [1.5.2] — 2026-04-06
 
 ### Added

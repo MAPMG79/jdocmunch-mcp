@@ -435,11 +435,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         if isinstance(result, dict):
             result.setdefault("_meta", {})["powered_by"] = "jdocmunch-mcp by jgravelle · https://github.com/jgravelle/jdocmunch-mcp"
-        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        return [TextContent(type="text", text=json.dumps(result, separators=(',', ':')))]
 
     except Exception as e:
         print(traceback.format_exc(), file=sys.stderr)
-        return [TextContent(type="text", text=json.dumps({"error": str(e)}, indent=2))]
+        return [TextContent(type="text", text=json.dumps({"error": str(e)}, separators=(',', ':')))]
 
 
 async def run_server():
