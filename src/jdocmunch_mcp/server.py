@@ -463,10 +463,88 @@ def main(argv: Optional[list] = None):
 
     parser = argparse.ArgumentParser(
         prog="jdocmunch-mcp",
-        description="Run the jDocMunch MCP stdio server.",
+        description="jDocMunch MCP — structured documentation retrieval server.",
     )
-    parser.parse_args(argv)
-    asyncio.run(run_server())
+    subparsers = parser.add_subparsers(dest="command")
+
+    # --- serve (default) ---
+    subparsers.add_parser("serve", help="Run the MCP server (default)")
+
+    # --- init ---
+    init_parser = subparsers.add_parser(
+        "init",
+        help="One-command setup: install hooks into ~/.claude/settings.json",
+    )
+    init_parser.add_argument(
+        "--hooks", action="store_true",
+        help="Install enforcement hooks into ~/.claude/settings.json",
+    )
+    init_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would be done without making changes",
+    )
+
+    # --- index-local ---
+    il_parser = subparsers.add_parser(
+        "index-local",
+        help="Index a local folder (CLI equivalent of the MCP index_local tool)",
+    )
+    il_parser.add_argument(
+        "--path", required=True,
+        help="Path to the folder to index",
+    )
+    il_parser.add_argument(
+        "--name",
+        help="Optional repo identifier override",
+    )
+
+    # --- hook-pretooluse ---
+    subparsers.add_parser(
+        "hook-pretooluse",
+        help="PreToolUse hook: intercept Read on large doc files (reads stdin)",
+    )
+
+    # --- hook-posttooluse ---
+    subparsers.add_parser(
+        "hook-posttooluse",
+        help="PostToolUse hook: auto-reindex doc files after Edit/Write (reads stdin)",
+    )
+
+    # --- hook-precompact ---
+    subparsers.add_parser(
+        "hook-precompact",
+        help="PreCompact hook: session snapshot before context compaction (reads stdin)",
+    )
+
+    args = parser.parse_args(argv)
+
+    # Default to serve when no subcommand given
+    if args.command is None or args.command == "serve":
+        asyncio.run(run_server())
+        return
+
+    if args.command == "init":
+        from .cli.init import run_init
+        run_init(hooks=args.hooks, dry_run=args.dry_run)
+        return
+
+    if args.command == "index-local":
+        from .tools.index_local import index_local
+        result = index_local(path=args.path, name=args.name)
+        print(json.dumps(result, indent=2))
+        return
+
+    if args.command == "hook-pretooluse":
+        from .cli.hooks import run_pretooluse
+        sys.exit(run_pretooluse())
+
+    if args.command == "hook-posttooluse":
+        from .cli.hooks import run_posttooluse
+        sys.exit(run_posttooluse())
+
+    if args.command == "hook-precompact":
+        from .cli.hooks import run_precompact
+        sys.exit(run_precompact())
 
 
 if __name__ == "__main__":

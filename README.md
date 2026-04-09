@@ -274,6 +274,40 @@ MiniMax, or GLM-5, include the optional dependency in the launcher command:
 
 After saving the config, **restart Claude Desktop / Claude Code**.
 
+### Claude Code hooks (recommended)
+
+jDocMunch ships enforcement hooks that keep your agent honest:
+
+- **PreToolUse** — warns when Claude tries to `Read` a large doc file, suggesting `search_sections` + `get_section`
+- **PostToolUse** — auto-reindexes doc files after `Edit`/`Write` so the index never goes stale
+- **PreCompact** — injects a session snapshot before context compaction so doc orientation survives
+
+Install all three in one command:
+
+```bash
+jdocmunch-mcp init --hooks
+```
+
+This merges the hooks into `~/.claude/settings.json` (additive — existing hooks are preserved, `.bak` backup created). Use `--dry-run` to preview changes.
+
+If you also use [jCodeMunch](https://github.com/jgravelle/jcodemunch-mcp), run both:
+
+```bash
+jcodemunch-mcp init --hooks
+jdocmunch-mcp init --hooks
+```
+
+### CLI subcommands
+
+| Subcommand | Purpose |
+|------------|---------|
+| `serve` (default) | Run the MCP server (stdio) |
+| `init --hooks` | Install enforcement hooks into `~/.claude/settings.json` |
+| `index-local --path <dir>` | Index a local folder (CLI, no MCP session needed) |
+| `hook-pretooluse` | PreToolUse hook handler (reads JSON from stdin) |
+| `hook-posttooluse` | PostToolUse hook handler (reads JSON from stdin) |
+| `hook-precompact` | PreCompact hook handler (reads JSON from stdin) |
+
 ---
 
 ## Google Antigravity
