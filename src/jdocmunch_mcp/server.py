@@ -473,15 +473,58 @@ def main(argv: Optional[list] = None):
     # --- init ---
     init_parser = subparsers.add_parser(
         "init",
-        help="One-command setup: install hooks into ~/.claude/settings.json",
+        help="One-command onboarding: detect clients, write config, install policy, hooks, index",
     )
     init_parser.add_argument(
         "--hooks", action="store_true",
         help="Install enforcement hooks into ~/.claude/settings.json",
     )
     init_parser.add_argument(
+        "--index", action="store_true",
+        help="Index the current working directory",
+    )
+    init_parser.add_argument(
+        "--client", dest="clients", action="append",
+        help="MCP client to configure (auto|none|claude-code|claude-desktop|cursor|windsurf|continue)",
+    )
+    init_parser.add_argument(
+        "--claude-md", dest="claude_md", choices=["global", "project"],
+        help="Install Doc Exploration Policy into CLAUDE.md",
+    )
+    init_parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be done without making changes",
+    )
+    init_parser.add_argument(
+        "--demo", action="store_true",
+        help="Demo mode: dry-run with benefit summary",
+    )
+    init_parser.add_argument(
+        "-y", "--yes", action="store_true",
+        help="Accept all defaults non-interactively",
+    )
+    init_parser.add_argument(
+        "--no-backup", action="store_true",
+        help="Skip creating .bak backups before modifying files",
+    )
+
+    # --- claude-md ---
+    cmd_parser = subparsers.add_parser(
+        "claude-md",
+        help="Print or install the Doc Exploration Policy for CLAUDE.md",
+    )
+    cmd_parser.add_argument(
+        "--install", choices=["global", "project"],
+        help="Append policy to CLAUDE.md (global or project scope)",
+    )
+
+    # --- index-file ---
+    if_parser = subparsers.add_parser(
+        "index-file",
+        help="Re-index a single file within an existing index",
+    )
+    if_parser.add_argument(
+        "file", help="Path to the file to re-index",
     )
 
     # --- index-local ---
@@ -525,7 +568,27 @@ def main(argv: Optional[list] = None):
 
     if args.command == "init":
         from .cli.init import run_init
-        run_init(hooks=args.hooks, dry_run=args.dry_run)
+        rc = run_init(
+            clients=args.clients,
+            claude_md=args.claude_md,
+            hooks=args.hooks,
+            index=args.index,
+            dry_run=args.dry_run,
+            demo=args.demo,
+            yes=args.yes,
+            no_backup=args.no_backup,
+        )
+        sys.exit(rc)
+
+    if args.command == "claude-md":
+        from .cli.init import run_claude_md
+        sys.exit(run_claude_md(install=args.install))
+
+    if args.command == "index-file":
+        from .tools.index_file import index_file_cli
+        result = index_file_cli(args.file)
+        print(json.dumps(result, indent=2))
+        sys.exit(0 if result.get("success") else 1)
         return
 
     if args.command == "index-local":

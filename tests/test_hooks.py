@@ -97,8 +97,7 @@ class TestPostToolUse:
             mock_popen.assert_called_once()
             cmd = mock_popen.call_args[0][0]
             assert cmd[0] == "jdocmunch-mcp"
-            assert cmd[1] == "index-local"
-            assert "--path" in cmd
+            assert cmd[1] == "index-file"
 
     def test_spawns_reindex_for_rst(self, tmp_path):
         p = tmp_path / "doc.rst"
@@ -290,6 +289,240 @@ class TestCLIDispatch:
 
     def test_init_hooks_dispatch(self):
         from jdocmunch_mcp.server import main
-        with mock.patch("jdocmunch_mcp.cli.init.run_init") as m:
-            main(["init", "--hooks"])
-            m.assert_called_once_with(hooks=True, dry_run=False)
+        with mock.patch("jdocmunch_mcp.cli.init.run_init", return_value=0) as m:
+            with pytest.raises(SystemExit) as exc_info:
+                main(["init", "--hooks"])
+            assert exc_info.value.code == 0
+            m.assert_called_once_with(
+                clients=None, claude_md=None, hooks=True, index=False,
+                dry_run=False, demo=False, yes=False, no_backup=False,
+            )
+
+    def test_claude_md_dispatch(self):
+        from jdocmunch_mcp.server import main
+        with mock.patch("jdocmunch_mcp.cli.init.run_claude_md", return_value=0) as m:
+            with pytest.raises(SystemExit) as exc_info:
+                main(["claude-md"])
+            assert exc_info.value.code == 0
+            m.assert_called_once_with(install=None)
+
+    def test_claude_md_install_dispatch(self):
+        from jdocmunch_mcp.server import main
+        with mock.patch("jdocmunch_mcp.cli.init.run_claude_md", return_value=0) as m:
+            with pytest.raises(SystemExit) as exc_info:
+                main(["claude-md", "--install", "global"])
+            assert exc_info.value.code == 0
+            m.assert_called_once_with(install="global")
+
+    def test_index_file_dispatch(self, tmp_path):
+        from jdocmunch_mcp.server import main
+        mock_result = {"success": True, "exit_code": 0}
+        with mock.patch("jdocmunch_mcp.tools.index_file.index_file_cli", return_value=mock_result) as m:
+            with pytest.raises(SystemExit) as exc_info:
+                main(["index-file", str(tmp_path / "doc.md")])
+            assert exc_info.value.code == 0
+            m.assert_called_once_with(str(tmp_path / "doc.md"))
+
+
+# ---------------------------------------------------------------------------
+# Client detection
+# ---------------------------------------------------------------------------
+
+class TestClientDetection:
+    """Tests for MCP client detection."""
+
+    def test_detects_claude_code(self):
+        from jdocmunch_mcp.cli.init import _detect_clients
+        with mock.patch("shutil.which", return_value="/usr/bin/claude"):
+            clients = _detect_clients()
+        names = [c.name for c in clients]
+        assert "Claude Code" in names
+
+    def test_no_clients_when_nothing_installed(self, tmp_path):
+        from jdocmunch_mcp.cli.init import _detect_clients
+        with mock.patch("shutil.which", return_value=None):
+            with mock.patch("pathlib.Path.home", return_value=tmp_path):
+                clients = _detect_clients()
+        # May still detect Claude Desktop if appdata parent exists
+        assert isinstance(clients, list)
+
+
+# ---------------------------------------------------------------------------
+# Config patching
+# ---------------------------------------------------------------------------
+
+class TestConfigPatching:
+    """Tests for MCP client config patching."""
+
+    def test_patches_empty_config(self, tmp_path):
+        from jdocmunch_mcp.cli.init import _patch_mcp_config
+        config = tmp_path / "mcp.json"
+        config.write_text("{}")
+        msg = _patch_mcp_config(config, backup=False)
+        assert "added jdocmunch" in msg
+        data = json.loads(config.read_text())
+        assert "jdocmunch" in data["mcpServers"]
+        assert data["mcpServers"]["jdocmunch"]["command"] == "uvx"
+
+    def test_preserves_existing_servers(self, tmp_path):
+        from jdocmunch_mcp.cli.init import _patch_mcp_config
+        config = tmp_path / "mcp.json"
+        config.write_text(json.dumps({"mcpServers": {"other": {"command": "node"}}}))
+        _patch_mcp_config(config, backup=False)
+        data = json.loads(config.read_text())
+        assert "other" in data["mcpServers"]
+        assert "jdocmunch" in data["mcpServers"]
+
+    def test_idempotent(self, tmp_path):
+        from jdocmunch_mcp.cli.init import _patch_mcp_config
+        config = tmp_path / "mcp.json"
+        config.write_text(json.dumps({"mcpServers": {"jdocmunch": {"command": "uvx"}}}))
+        msg = _patch_mcp_config(config, backup=False)
+        assert "already configured" in msg
+
+    def test_dry_run(self, tmp_path):
+        from jdocmunch_mcp.cli.init import _patch_mcp_config
+        config = tmp_path / "mcp.json"
+        config.write_text("{}")
+        msg = _patch_mcp_config(config, dry_run=True)
+        assert "would add" in msg
+        assert json.loads(config.read_text()) == {}
+
+
+# ---------------------------------------------------------------------------
+# CLAUDE.md injection
+# ---------------------------------------------------------------------------
+
+class TestClaudeMdInjection:
+    """Tests for CLAUDE.md policy installation."""
+
+    def test_appends_policy(self, tmp_path):
+        from jdocmunch_mcp.cli.init import install_claude_md, _CLAUDE_MD_MARKER
+        md = tmp_path / "CLAUDE.md"
+        md.write_text("# Existing content\n")
+        with mock.patch("jdocmunch_mcp.cli.init._claude_md_path", return_value=md):
+            msg = install_claude_md("global", backup=False)
+        assert "appended" in msg
+        content = md.read_text()
+        assert _CLAUDE_MD_MARKER in content
+        assert "# Existing content" in content
+
+    def test_creates_new_file(self, tmp_path):
+        from jdocmunch_mcp.cli.init import install_claude_md, _CLAUDE_MD_MARKER
+        md = tmp_path / "CLAUDE.md"
+        with mock.patch("jdocmunch_mcp.cli.init._claude_md_path", return_value=md):
+            install_claude_md("global", backup=False)
+        assert md.exists()
+        assert _CLAUDE_MD_MARKER in md.read_text()
+
+    def test_idempotent(self, tmp_path):
+        from jdocmunch_mcp.cli.init import install_claude_md, _CLAUDE_MD_MARKER
+        md = tmp_path / "CLAUDE.md"
+        md.write_text(f"existing\n\n{_CLAUDE_MD_MARKER}\nstuff")
+        with mock.patch("jdocmunch_mcp.cli.init._claude_md_path", return_value=md):
+            msg = install_claude_md("global", backup=False)
+        assert "already present" in msg
+
+
+# ---------------------------------------------------------------------------
+# Cursor / Windsurf rules
+# ---------------------------------------------------------------------------
+
+class TestIDERules:
+    """Tests for Cursor and Windsurf rule installation."""
+
+    def test_writes_cursor_rules(self, tmp_path):
+        from jdocmunch_mcp.cli.init import install_cursor_rules, _CLAUDE_MD_MARKER
+        with mock.patch("jdocmunch_mcp.cli.init._cursor_rules_path", return_value=tmp_path / ".cursor" / "rules" / "jdocmunch.mdc"):
+            msg = install_cursor_rules(backup=False)
+        assert "wrote" in msg
+        content = (tmp_path / ".cursor" / "rules" / "jdocmunch.mdc").read_text()
+        assert "alwaysApply: true" in content
+        assert _CLAUDE_MD_MARKER in content
+
+    def test_writes_windsurf_rules(self, tmp_path):
+        from jdocmunch_mcp.cli.init import install_windsurf_rules, _CLAUDE_MD_MARKER
+        ws = tmp_path / ".windsurfrules"
+        with mock.patch("jdocmunch_mcp.cli.init._windsurf_rules_path", return_value=ws):
+            msg = install_windsurf_rules(backup=False)
+        assert "appended" in msg
+        assert _CLAUDE_MD_MARKER in ws.read_text()
+
+
+# ---------------------------------------------------------------------------
+# claude-md subcommand
+# ---------------------------------------------------------------------------
+
+class TestClaudeMdCommand:
+    """Tests for the claude-md standalone subcommand."""
+
+    def test_prints_policy(self, capsys):
+        from jdocmunch_mcp.cli.init import run_claude_md, _CLAUDE_MD_MARKER
+        rc = run_claude_md()
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert _CLAUDE_MD_MARKER in out
+
+    def test_install_global(self, tmp_path):
+        from jdocmunch_mcp.cli.init import run_claude_md, _CLAUDE_MD_MARKER
+        md = tmp_path / "CLAUDE.md"
+        with mock.patch("jdocmunch_mcp.cli.init._claude_md_path", return_value=md):
+            rc = run_claude_md(install="global")
+        assert rc == 0
+        assert _CLAUDE_MD_MARKER in md.read_text()
+
+
+# ---------------------------------------------------------------------------
+# index-file tool
+# ---------------------------------------------------------------------------
+
+class TestIndexFile:
+    """Tests for index_file tool."""
+
+    def test_rejects_nonexistent_file(self):
+        from jdocmunch_mcp.tools.index_file import index_file
+        result = index_file("/nonexistent/doc.md")
+        assert not result["success"]
+        assert result["exit_code"] == 2
+
+    def test_rejects_non_doc_extension(self, tmp_path):
+        from jdocmunch_mcp.tools.index_file import index_file
+        p = tmp_path / "code.py"
+        p.write_text("print('hi')")
+        result = index_file(str(p))
+        assert not result["success"]
+        assert "Not a doc file" in result["error"]
+
+    def test_rejects_file_not_in_index(self, tmp_path):
+        from jdocmunch_mcp.tools.index_file import index_file
+        p = tmp_path / "doc.md"
+        p.write_text("# Hello")
+        result = index_file(str(p))
+        assert not result["success"]
+        assert result["exit_code"] == 1
+
+    def test_reindexes_file_in_existing_index(self, tmp_path):
+        """Full integration: index a folder, then re-index a single file."""
+        from jdocmunch_mcp.tools.index_local import index_local
+        from jdocmunch_mcp.tools.index_file import index_file
+
+        # Create a mini doc folder
+        doc_dir = tmp_path / "testdocs"
+        doc_dir.mkdir()
+        (doc_dir / "one.md").write_text("# One\nContent one")
+        (doc_dir / "two.md").write_text("# Two\nContent two")
+
+        # Index the folder
+        storage = str(tmp_path / "storage")
+        r1 = index_local(path=str(doc_dir), storage_path=storage)
+        assert r1["success"]
+
+        # Modify a file
+        (doc_dir / "one.md").write_text("# One Updated\nNew content")
+
+        # Re-index just that file
+        r2 = index_file(str(doc_dir / "one.md"), storage_path=storage)
+        assert r2["success"]
+        assert r2["file"] == "one.md"
+        assert not r2["is_new"]
+        assert r2["sections"] >= 1

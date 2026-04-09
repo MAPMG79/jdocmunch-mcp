@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.7.0] — 2026-04-09
+
+### New: Full `init` onboarding
+
+- **`jdocmunch-mcp init`** — One-command setup matching jcodemunch-mcp's UX:
+  - Detects installed MCP clients (Claude Code CLI, Claude Desktop, Cursor, Windsurf, Continue)
+  - Patches each client's config JSON to add jdocmunch as an MCP server
+  - Installs a Doc Exploration Policy into CLAUDE.md (global or project scope)
+  - Installs Cursor rules (`.cursor/rules/jdocmunch.mdc`) and Windsurf rules (`.windsurfrules`)
+  - Installs enforcement hooks (PreToolUse, PostToolUse, PreCompact)
+  - Indexes the current working directory
+  - Supports `--dry-run`, `--demo`, `--yes`, `--no-backup`, `--client`, `--claude-md`, `--hooks`, `--index`
+  - Interactive prompts for scope selection when run in a terminal
+
+### New: `claude-md` subcommand
+
+- **`jdocmunch-mcp claude-md`** — Print the Doc Exploration Policy to stdout
+- **`jdocmunch-mcp claude-md --install global|project`** — Append policy to CLAUDE.md (idempotent)
+
+### New: `index-file` single-file re-index
+
+- **`jdocmunch-mcp index-file <path>`** — Re-index a single doc file within an existing index without re-walking the entire folder. Finds the owning index automatically, re-parses, and updates in place via incremental_save.
+- PostToolUse hook now spawns `index-file <path>` instead of `index-local --path <dir>` for faster, more targeted re-indexing after edits.
+
+### Tests
+
+- 20 new tests for client detection, config patching, CLAUDE.md injection, Cursor/Windsurf rules, claude-md command, index-file tool, CLI dispatch (347 total)
+
 ## [1.6.0] — 2026-04-09
 
 ### New: CLI hook system for Claude Code

@@ -282,19 +282,25 @@ jDocMunch ships enforcement hooks that keep your agent honest:
 - **PostToolUse** — auto-reindexes doc files after `Edit`/`Write` so the index never goes stale
 - **PreCompact** — injects a session snapshot before context compaction so doc orientation survives
 
-Install all three in one command:
+Install everything in one command:
+
+```bash
+jdocmunch-mcp init
+```
+
+This detects your MCP clients, patches their config, installs a Doc Exploration Policy into CLAUDE.md, sets up enforcement hooks, and indexes your current directory. Use `--dry-run` to preview, `--demo` for a benefit summary, or `--yes` for non-interactive mode.
+
+For hooks only:
 
 ```bash
 jdocmunch-mcp init --hooks
 ```
 
-This merges the hooks into `~/.claude/settings.json` (additive — existing hooks are preserved, `.bak` backup created). Use `--dry-run` to preview changes.
-
 If you also use [jCodeMunch](https://github.com/jgravelle/jcodemunch-mcp), run both:
 
 ```bash
-jcodemunch-mcp init --hooks
-jdocmunch-mcp init --hooks
+jcodemunch-mcp init
+jdocmunch-mcp init
 ```
 
 ### CLI subcommands
@@ -302,8 +308,10 @@ jdocmunch-mcp init --hooks
 | Subcommand | Purpose |
 |------------|---------|
 | `serve` (default) | Run the MCP server (stdio) |
-| `init --hooks` | Install enforcement hooks into `~/.claude/settings.json` |
+| `init` | One-command onboarding: detect clients, write config, install policy, hooks, index |
+| `claude-md` | Print or install the Doc Exploration Policy (`--install global\|project`) |
 | `index-local --path <dir>` | Index a local folder (CLI, no MCP session needed) |
+| `index-file <path>` | Re-index a single file within an existing index |
 | `hook-pretooluse` | PreToolUse hook handler (reads JSON from stdin) |
 | `hook-posttooluse` | PostToolUse hook handler (reads JSON from stdin) |
 | `hook-precompact` | PreCompact hook handler (reads JSON from stdin) |

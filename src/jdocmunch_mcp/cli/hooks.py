@@ -105,10 +105,8 @@ def run_posttooluse() -> int:
     if ext.lower() not in _DOC_EXTENSIONS:
         return 0
 
-    # Determine the folder to re-index (parent of the edited file).
-    folder = str(Path(file_path).resolve().parent)
-
-    # Fire-and-forget: spawn index-local in background.
+    # Fire-and-forget: spawn index-file for the single edited file.
+    resolved = str(Path(file_path).resolve())
     try:
         kwargs: dict = dict(
             stdout=subprocess.DEVNULL,
@@ -117,7 +115,7 @@ def run_posttooluse() -> int:
         if sys.platform == "win32":
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
         subprocess.Popen(
-            ["jdocmunch-mcp", "index-local", "--path", folder],
+            ["jdocmunch-mcp", "index-file", resolved],
             **kwargs,
         )
     except (OSError, FileNotFoundError):

@@ -1,6 +1,6 @@
 # jdocmunch-mcp
 
-**Version:** 1.6.0 | **Tests:** `pytest tests/ -q` (327 total)
+**Version:** 1.7.0 | **Tests:** `pytest tests/ -q` (347 total)
 
 ## Purpose
 Documentation section indexing for the jMunch suite. Companion to jcodemunch-mcp (which owns code symbols). Do NOT add code/docstring parsing here.
@@ -11,17 +11,19 @@ Documentation section indexing for the jMunch suite. Companion to jcodemunch-mcp
 ## Key Modules
 - `storage/doc_store.py` — DocIndex, DocStore, detect_changes, incremental_save
 - `parser/` — one file per format (markdown, rst, asciidoc, notebook, html, text, openapi, json, xml)
-- `tools/` — index_local, index_repo, get_toc, get_toc_tree, search_sections, get_section, get_sections, list_repos, delete_index, get_broken_links, get_doc_coverage
+- `tools/` — index_local, index_repo, index_file, get_toc, get_toc_tree, search_sections, get_section, get_sections, list_repos, delete_index, get_broken_links, get_doc_coverage
 - `cli/hooks.py` — PreToolUse (Read interceptor) + PostToolUse (auto-reindex) + PreCompact (session snapshot) hook handlers for Claude Code
-- `cli/init.py` — `jdocmunch-mcp init --hooks` installer; merges enforcement hooks into settings.json
+- `cli/init.py` — `jdocmunch-mcp init` full onboarding: client detection, config patching, CLAUDE.md policy, Cursor/Windsurf rules, hooks, index; `claude-md` subcommand
 - `embeddings/` — provider.py (Gemini + OpenAI), cosine_similarity, embed_sections, embed_query
 
 ## CLI Subcommands
 | Subcommand | Purpose |
 |------------|---------|
 | `serve` (default) | Run the MCP server (stdio) |
-| `init --hooks` | Install enforcement hooks into `~/.claude/settings.json` |
+| `init` | One-command onboarding: detect clients, write config, install policy, hooks, index |
+| `claude-md` | Print or install the Doc Exploration Policy (`--install global\|project`) |
 | `index-local --path <dir>` | Index a local folder (CLI, no MCP session needed) |
+| `index-file <path>` | Re-index a single file within an existing index |
 | `hook-pretooluse` | PreToolUse hook: intercept Read on large doc files (reads stdin) |
 | `hook-posttooluse` | PostToolUse hook: auto-reindex doc files after Edit/Write (reads stdin) |
 | `hook-precompact` | PreCompact hook: session snapshot before context compaction (reads stdin) |
