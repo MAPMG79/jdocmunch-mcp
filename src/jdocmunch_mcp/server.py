@@ -435,6 +435,23 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         if isinstance(result, dict):
             result.setdefault("_meta", {})["powered_by"] = "jdocmunch-mcp by jgravelle · https://github.com/jgravelle/jdocmunch-mcp"
+
+            # meta_fields filtering (matches jcodemunch-mcp behaviour)
+            from .config import get_meta_fields
+            meta_fields = get_meta_fields()
+            if meta_fields == []:
+                result.pop("_meta", None)
+            elif isinstance(meta_fields, list):
+                existing_meta = result.pop("_meta", {})
+                _meta: dict[str, Any] = {}
+                if "powered_by" in meta_fields:
+                    _meta["powered_by"] = existing_meta.get("powered_by", "")
+                for field in meta_fields:
+                    if field in existing_meta:
+                        _meta[field] = existing_meta[field]
+                if _meta:
+                    result["_meta"] = _meta
+
         return [TextContent(type="text", text=json.dumps(result, separators=(',', ':')))]
 
     except Exception as e:

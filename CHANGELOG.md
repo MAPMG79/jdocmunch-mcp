@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.1] — 2026-04-09
+
+### New features
+
+- **`meta_fields` support** — control which `_meta` fields appear in tool responses via `JDOCMUNCH_META_FIELDS` env var. Matches jcodemunch-mcp's `meta_fields` affordance. Values: unset/`[]` = strip `_meta` entirely (default, maximum token savings), `null`/`all`/`*` = include all fields, comma-separated list = include only those fields (e.g. `timing_ms,powered_by`).
+
+### Tests
+
+- 11 new tests for meta_fields config parsing and filtering (358 total)
+
 ## [1.7.0] — 2026-04-09
 
 ### New: Full `init` onboarding
