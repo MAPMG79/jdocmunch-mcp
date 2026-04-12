@@ -24,6 +24,9 @@ from .tools.get_section_context import get_section_context
 from .tools.delete_index import delete_index
 from .tools.get_broken_links import get_broken_links
 from .tools.get_doc_coverage import get_doc_coverage
+from .tools.get_backlinks import get_backlinks
+from .tools.get_stale_pages import get_stale_pages
+from .tools.get_wiki_stats import get_wiki_stats
 
 
 server = Server("jdocmunch-mcp")
@@ -325,6 +328,70 @@ async def list_tools() -> list[Tool]:
                 "required": ["repo", "symbol_ids"]
             }
         ),
+        Tool(
+            name="get_backlinks",
+            description=(
+                "Find all sections that link TO a given document (inverse reference graph). "
+                "Useful for the LLM Wiki pattern: when a source changes, find which wiki pages reference it. "
+                "Output: list of {source_file, source_section, source_section_id, link}."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "doc_path": {
+                        "type": "string",
+                        "description": "Target document path to find backlinks for (e.g., 'raw/article.md' or 'wiki/concepts/auth.md')"
+                    }
+                },
+                "required": ["repo", "doc_path"]
+            }
+        ),
+        Tool(
+            name="get_stale_pages",
+            description=(
+                "Find wiki pages whose declared sources have been modified on disk. "
+                "Convention: wiki pages include YAML frontmatter with a 'sources' list of relative paths "
+                "to raw source files. This tool checks whether those source files have changed since the "
+                "page was last indexed. Output: list of {doc_path, title, stale_sources} where each "
+                "stale source has a reason: 'modified', 'missing', or 'untracked'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    },
+                    "sources_dir": {
+                        "type": "string",
+                        "description": "Base directory for resolving relative source paths. If omitted, uses the index's source_root."
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
+        Tool(
+            name="get_wiki_stats",
+            description=(
+                "Wiki health dashboard. Returns: orphan pages (zero inbound internal links), "
+                "most-linked pages (top 10), tag distribution, total internal link count, "
+                "and sections-per-doc min/max/avg. Use for periodic wiki lint checks."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "repo": {
+                        "type": "string",
+                        "description": "Repository identifier (owner/repo or just repo name)"
+                    }
+                },
+                "required": ["repo"]
+            }
+        ),
     ]
 
 
@@ -428,6 +495,23 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = get_doc_coverage(
                 repo=arguments["repo"],
                 symbol_ids=arguments["symbol_ids"],
+                storage_path=storage_path,
+            )
+        elif name == "get_backlinks":
+            result = get_backlinks(
+                repo=arguments["repo"],
+                doc_path=arguments["doc_path"],
+                storage_path=storage_path,
+            )
+        elif name == "get_stale_pages":
+            result = get_stale_pages(
+                repo=arguments["repo"],
+                sources_dir=arguments.get("sources_dir"),
+                storage_path=storage_path,
+            )
+        elif name == "get_wiki_stats":
+            result = get_wiki_stats(
+                repo=arguments["repo"],
                 storage_path=storage_path,
             )
         else:
