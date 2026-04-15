@@ -592,6 +592,29 @@ This repository is **free for non-commercial use** under the terms below.
 
 ---
 
+## Works with
+
+jDocMunch plugs into any MCP-compatible agent or IDE. Tested configurations:
+
+| Platform | Config |
+|----------|--------|
+| **Claude Code / Claude Desktop** | `jdocmunch-mcp init` (auto-detects and patches config) |
+| **Cursor / Windsurf** | `jdocmunch-mcp init` or manual `mcp.json` |
+| **[Hermes Agent](https://github.com/NousResearch/hermes-agent)** | Add to `~/.hermes/config.yaml` — see [skill](https://github.com/NousResearch/hermes-agent/pull/10413) |
+| **Any MCP client** | stdio: `jdocmunch-mcp` |
+
+<details>
+<summary>Hermes Agent config</summary>
+
+```yaml
+# ~/.hermes/config.yaml
+mcp_servers:
+  jdocmunch:
+    command: "uvx"
+    args: ["jdocmunch-mcp"]
+```
+</details>
+
 ## Star History
 
 <a href="https://www.star-history.com/?repos=jgravelle%2Fjdocmunch-mcp&type=date&legend=top-left">
